@@ -1,0 +1,24 @@
+{
+  "name": "proactivity",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @proactivity/web dev",
+    "build": "pnpm -r build",
+    "ingest": "pnpm --filter @proactivity/ingestion start",
+    "sources:add": "pnpm --filter @proactivity/ingestion sources add",
+    "sources:list": "pnpm --filter @proactivity/ingestion sources list",
+    "sources:disable": "pnpm --filter @proactivity/ingestion sources disable",
+    "sources:set": "pnpm --filter @proactivity/ingestion sources set",
+    "db:generate": "pnpm --filter @proactivity/db generate",
+    "db:migrate": "pnpm --filter @proactivity/db migrate",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
