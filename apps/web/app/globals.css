@@ -341,6 +341,10 @@ main {
   background: var(--danger-soft);
   color: var(--danger);
 }
+.badge-age {
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+}
 
 .price {
   font-weight: 600;

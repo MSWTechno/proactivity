@@ -30,6 +30,7 @@ interface Activity {
   startAt: string;
   venueName: string | null;
   city: string | null;
+  ageRange: { min: number | null; max: number | null; label: string } | null;
   costMinCents: number | null;
   costMaxCents: number | null;
   currency: string | null;
@@ -319,13 +320,17 @@ function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
           {when}{place ? ` · ${place}` : ''}{distance ? ` · ${distance}` : ''}
         </Text>
         <View style={styles.cardBottom}>
-          <View style={[
-            styles.badge,
-            { backgroundColor: isAvailable ? t.successSoft : t.dangerSoft },
-          ]}>
-            <Text style={{ color: isAvailable ? t.success : t.danger, fontSize: 11 }}>
-              {availabilityLabel(activity.availability)}
-            </Text>
+          <View style={styles.cardBadges}>
+            <View style={[styles.badge, { backgroundColor: isAvailable ? t.successSoft : t.dangerSoft }]}>
+              <Text style={{ color: isAvailable ? t.success : t.danger, fontSize: 11 }}>
+                {availabilityLabel(activity.availability)}
+              </Text>
+            </View>
+            {activity.ageRange && (
+              <View style={[styles.badge, { backgroundColor: t.accent + '22' }]}>
+                <Text style={{ color: t.accent, fontSize: 11 }}>{activity.ageRange.label}</Text>
+              </View>
+            )}
           </View>
           {price && <Text style={[styles.price, { color: t.fg }]}>{price}</Text>}
         </View>
@@ -407,6 +412,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontWeight: '600', marginBottom: 3 },
   cardMeta: { fontSize: 12 },
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  cardBadges: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   badge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 999 },
   price: { fontSize: 13, fontWeight: '600' },
   errorBox: { padding: 10, borderRadius: 10, marginVertical: 8 },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { categorize, ALL_CATEGORY_KEYS, type CategoryKey } from '@/lib/categories';
+import { inferAgeRange } from '@/lib/age';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,8 @@ interface ActivityRow {
   venue_name: string | null;
   city: string | null;
   region: string | null;
+  age_min: number | null;
+  age_max: number | null;
   cost_min_cents: number | null;
   cost_max_cents: number | null;
   currency: string | null;
@@ -86,6 +89,7 @@ export async function GET(request: Request) {
     SELECT
       id, title, description, start_at, end_at, timezone,
       venue_name, city, region,
+      age_min, age_max,
       cost_min_cents, cost_max_cents, currency, availability,
       url, image_url, categories,
       ST_X(location) AS lng,
@@ -109,6 +113,12 @@ export async function GET(request: Request) {
       description: r.description,
       venueName: r.venue_name,
     });
+    const ageRange = inferAgeRange({
+      title: r.title,
+      description: r.description,
+      ageMin: r.age_min,
+      ageMax: r.age_max,
+    });
     return {
       id: r.id,
       title: r.title,
@@ -119,6 +129,9 @@ export async function GET(request: Request) {
       venueName: r.venue_name,
       city: r.city,
       region: r.region,
+      ageMin: r.age_min,
+      ageMax: r.age_max,
+      ageRange,
       costMinCents: r.cost_min_cents,
       costMaxCents: r.cost_max_cents,
       currency: r.currency,

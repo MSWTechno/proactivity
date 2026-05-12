@@ -14,6 +14,7 @@ interface Activity {
   venueName: string | null;
   city: string | null;
   region: string | null;
+  ageRange: { min: number | null; max: number | null; label: string } | null;
   costMinCents: number | null;
   costMaxCents: number | null;
   currency: string | null;
@@ -362,6 +363,7 @@ function ActivityCard({ a }: { a: Activity }) {
       </div>
       <div className="card-right">
         <span className={`badge ${isAvailable ? '' : 'badge-soldout'}`}>{availabilityLabel(a.availability)}</span>
+        {a.ageRange && <span className="badge badge-age">{a.ageRange.label}</span>}
         {price && <span className="price">{price}</span>}
       </div>
     </a>
