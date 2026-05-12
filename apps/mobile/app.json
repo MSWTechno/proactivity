@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Proactivity",
+    "slug": "proactivity",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mswtechno.proactivity"
+    },
+    "android": {
+      "package": "com.mswtechno.proactivity"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Proactivity to use your location to show nearby events."
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://proactivity-web.vercel.app"
+    }
+  }
+}
