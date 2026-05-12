@@ -331,7 +331,7 @@ function mapToActivity(
     currency: offers?.priceCurrency ?? null,
     availability,
     url: ev.url ?? detailUrl,
-    imageUrl: pickImage(ev.image),
+    imageUrl: pickImage(ev.image, detailUrl),
     categories: null,
     raw: ev as unknown,
   };
@@ -408,10 +408,20 @@ function mapAvailability(
   return fallback;
 }
 
-function pickImage(image: string | string[] | undefined): string | null {
-  if (!image) return null;
-  if (typeof image === 'string') return image;
-  return image[0] ?? null;
+function pickImage(image: string | string[] | undefined, baseUrl: string): string | null {
+  const raw = !image ? null : typeof image === 'string' ? image : image[0] ?? null;
+  if (!raw) return null;
+  // Resolve relative URLs to absolute (some sites publish "/path/img.jpg").
+  let absolute: string;
+  try {
+    absolute = new URL(raw, baseUrl).toString();
+  } catch {
+    return null;
+  }
+  // Drop generic fallback/placeholder images — our title-icon is better.
+  if (/\/(fallbacks?|placeholders?|defaults?|generic)\//i.test(absolute)) return null;
+  if (/group-cover-\d+-square|default-group-cover/i.test(absolute)) return null;
+  return absolute;
 }
 
 function stripHtml(s: string): string {
