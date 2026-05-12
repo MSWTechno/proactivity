@@ -53,7 +53,7 @@ importers:
         version: link:../../packages/ingestion
       drizzle-orm:
         specifier: ^0.36.0
-        version: 0.36.4(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.6)
+        version: 0.36.4(@types/react@19.1.17)(postgres@3.4.9)(react@19.2.6)
       next:
         specifier: ^15.0.0
         version: 15.5.18(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -68,11 +68,11 @@ importers:
         specifier: ^22.7.0
         version: 22.19.18
       '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.14
+        specifier: ~19.1.0
+        version: 19.1.17
       '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.14)
+        specifier: ~19.1.0
+        version: 19.1.11(@types/react@19.1.17)
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -1556,16 +1556,13 @@ packages:
   '@types/node@22.19.18':
     resolution: {integrity: sha512-9v00a+dn2yWVsYDEunWC4g/TcRKVq3r8N5FuZp7u0SGrPvdN9c2yXI9bBuf5Fl0hNCb+QTIePTn5pJs2pwBOQQ==}
 
-  '@types/react-dom@19.2.3':
-    resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
+  '@types/react-dom@19.1.11':
+    resolution: {integrity: sha512-3BKc/yGdNTYQVVw4idqHtSOcFsgGuBbMveKCOgF8wQ5QtrYOc3jDIlzg3jef04zcXFIHLelyGlj0T+BJ8+KN+w==}
     peerDependencies:
-      '@types/react': ^19.2.0
+      '@types/react': ^19.0.0
 
   '@types/react@19.1.17':
     resolution: {integrity: sha512-Qec1E3mhALmaspIrhWt9jkQMNdw6bReVu64mjvhbhq2NFPftLPVr+l1SZgmw/66WwBNpDh7ao5AT6gF5v41PFA==}
-
-  '@types/react@19.2.14':
-    resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
@@ -5182,15 +5179,11 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/react-dom@19.2.3(@types/react@19.2.14)':
+  '@types/react-dom@19.1.11(@types/react@19.1.17)':
     dependencies:
-      '@types/react': 19.2.14
+      '@types/react': 19.1.17
 
   '@types/react@19.1.17':
-    dependencies:
-      csstype: 3.2.3
-
-  '@types/react@19.2.14':
     dependencies:
       csstype: 3.2.3
 
@@ -5664,9 +5657,9 @@ snapshots:
       postgres: 3.4.9
       react: 19.1.1
 
-  drizzle-orm@0.36.4(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.6):
+  drizzle-orm@0.36.4(@types/react@19.1.17)(postgres@3.4.9)(react@19.2.6):
     optionalDependencies:
-      '@types/react': 19.2.14
+      '@types/react': 19.1.17
       postgres: 3.4.9
       react: 19.2.6
 

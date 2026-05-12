@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, type CategoryKey, ALL_CATEGORY_KEYS } from '@/lib/categories';
+import { placeholderFor } from '@/lib/icons';
 
 interface Activity {
   id: string;
@@ -295,18 +296,19 @@ function ActivityCard({ a }: { a: Activity }) {
   const distance = a.distanceMeters != null ? `${(a.distanceMeters / 1000).toFixed(1)} km` : null;
   const price = formatPrice(a.costMinCents, a.costMaxCents, a.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(a.availability);
-  const catEmojis = a.canonicalCategories
-    .filter((k) => k !== 'other')
-    .slice(0, 3)
-    .map((k) => CATEGORIES[k].emoji)
-    .join(' ');
+  const placeholder = placeholderFor({ title: a.title, canonicalCategories: a.canonicalCategories });
 
   return (
     <a className="card" href={a.url ?? '#'} target="_blank" rel="noreferrer">
       {a.imageUrl ? (
         <img className="card-img" src={a.imageUrl} alt="" loading="lazy" />
       ) : (
-        <div className="card-img card-img-placeholder">{catEmojis || '✨'}</div>
+        <div
+          className="card-img card-img-placeholder"
+          style={{ backgroundColor: placeholder.color, color: 'white' }}
+        >
+          {placeholder.emoji}
+        </div>
       )}
       <div className="card-body">
         <p className="card-title">{a.title}</p>

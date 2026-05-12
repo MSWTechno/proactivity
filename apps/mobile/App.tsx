@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native';
 import { ALL_CATEGORY_KEYS, CATEGORIES, type CategoryKey } from './lib/categories';
+import { placeholderFor } from './lib/icons';
 
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity-web.vercel.app';
@@ -186,6 +187,7 @@ export default function App() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.catScroll}
         contentContainerStyle={styles.catRow}
       >
         {ALL_CATEGORY_KEYS.map((key) => {
@@ -232,6 +234,7 @@ export default function App() {
           keyExtractor={(a) => a.id}
           renderItem={({ item }) => <ActivityRow activity={item} t={t} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+          style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
@@ -276,14 +279,14 @@ function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
       {activity.imageUrl ? (
         <Image source={{ uri: activity.imageUrl }} style={styles.cardImg} />
       ) : (
-        <View style={[styles.cardImg, styles.cardImgPlaceholder, { backgroundColor: t.sunken }]}>
-          <Text style={styles.cardImgEmoji}>
-            {activity.canonicalCategories
-              .filter((k) => k !== 'other')
-              .slice(0, 1)
-              .map((k) => CATEGORIES[k].emoji)[0] ?? '✨'}
-          </Text>
-        </View>
+        (() => {
+          const ph = placeholderFor({ title: activity.title, canonicalCategories: activity.canonicalCategories });
+          return (
+            <View style={[styles.cardImg, styles.cardImgPlaceholder, { backgroundColor: ph.color }]}>
+              <Text style={styles.cardImgEmoji}>{ph.emoji}</Text>
+            </View>
+          );
+        })()
       )}
       <View style={styles.cardBody}>
         <Text numberOfLines={2} style={[styles.cardTitle, { color: t.fg }]}>{activity.title}</Text>
@@ -366,7 +369,9 @@ const styles = StyleSheet.create({
   rangeRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   rangeChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
   rangeChipText: { fontSize: 13 },
+  catScroll: { flexGrow: 0, marginBottom: 10 },
   catRow: { gap: 6, paddingVertical: 4, paddingRight: 16 },
+  list: { flex: 1 },
   chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, marginRight: 6 },
   chipText: { fontSize: 13 },
   card: { flexDirection: 'row', borderRadius: 14, borderWidth: 1, padding: 10, gap: 10 },
