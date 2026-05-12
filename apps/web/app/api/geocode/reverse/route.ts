@@ -81,6 +81,8 @@ interface NominatimResponse {
     hamlet?: string;
     municipality?: string;
     suburb?: string;
+    neighbourhood?: string;
+    county?: string;
     state?: string;
     'ISO3166-2-lvl4'?: string;
     country_code?: string;
@@ -89,6 +91,9 @@ interface NominatimResponse {
 
 function formatPlaceName(data: NominatimResponse): string {
   const addr = data.address ?? {};
+  // Locality fallback chain — go from most-specific town to county before
+  // the state, so rural users see e.g. "Rockingham County, VA" instead of
+  // just "VA".
   const locality =
     addr.city ||
     addr.town ||
@@ -96,6 +101,8 @@ function formatPlaceName(data: NominatimResponse): string {
     addr.hamlet ||
     addr.municipality ||
     addr.suburb ||
+    addr.neighbourhood ||
+    addr.county ||
     '';
   // 'ISO3166-2-lvl4' is like "US-VA" — extract "VA". Else fall back to full state name.
   const stateCode = addr['ISO3166-2-lvl4']?.split('-')[1];
