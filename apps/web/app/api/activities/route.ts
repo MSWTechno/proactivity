@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
+import { categorize, ALL_CATEGORY_KEYS, type CategoryKey } from '@/lib/categories';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,14 @@ export async function GET(request: Request) {
   const sort = (q.get('sort') ?? 'distance') as 'distance' | 'time' | 'cost';
   const page = Math.max(0, Math.floor(parseNum(q.get('page')) ?? 0));
   const pageSize = clampInt(parseNum(q.get('pageSize')) ?? 50, 1, 100);
+  const search = q.get('search')?.trim().toLowerCase() ?? '';
+  const categoryParam = q.get('category')?.trim() ?? '';
+  const requestedCategories = categoryParam
+    ? categoryParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s): s is CategoryKey => ALL_CATEGORY_KEYS.includes(s as CategoryKey))
+    : [];
 
   const hasUserLocation = lat != null && lng != null;
   const effectiveSort = sort === 'distance' && !hasUserLocation ? 'time' : sort;
@@ -92,8 +101,15 @@ export async function GET(request: Request) {
     LIMIT ${pageSize} OFFSET ${page * pageSize}
   `) as unknown as ActivityRow[];
 
-  return NextResponse.json({
-    items: rows.map((r) => ({
+  // Derive canonical categories per row, then filter by search + category.
+  const mapped = rows.map((r) => {
+    const canonical = categorize({
+      rawCategories: r.categories,
+      title: r.title,
+      description: r.description,
+      venueName: r.venue_name,
+    });
+    return {
       id: r.id,
       title: r.title,
       description: r.description,
@@ -110,12 +126,30 @@ export async function GET(request: Request) {
       url: r.url,
       imageUrl: r.image_url,
       categories: r.categories,
+      canonicalCategories: canonical,
       lng: r.lng,
       lat: r.lat,
       distanceMeters: r.distance_m,
-    })),
+    };
+  });
+
+  const filtered = mapped.filter((item) => {
+    if (requestedCategories.length > 0) {
+      const hit = item.canonicalCategories.some((c) => requestedCategories.includes(c));
+      if (!hit) return false;
+    }
+    if (search) {
+      const hay = `${item.title} ${item.description ?? ''} ${item.venueName ?? ''}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  return NextResponse.json({
+    items: filtered,
     page,
     pageSize,
+    total: filtered.length,
   });
 }
 
