@@ -273,6 +273,7 @@ function GeoBar({ geo, placeName, t }: { geo: GeoState; placeName: string | null
 }
 
 function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(activity.startAt);
   const when = start.toLocaleString(undefined, {
     weekday: 'short',
@@ -285,6 +286,7 @@ function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
   const distance = activity.distanceMeters != null ? `${(activity.distanceMeters / 1000).toFixed(1)} km` : null;
   const price = formatPrice(activity.costMinCents, activity.costMaxCents, activity.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(activity.availability);
+  const showImage = activity.imageUrl && !imgFailed;
 
   return (
     <Pressable
@@ -295,8 +297,12 @@ function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
         pressed && { opacity: 0.7 },
       ]}
     >
-      {activity.imageUrl ? (
-        <Image source={{ uri: activity.imageUrl }} style={styles.cardImg} />
+      {showImage ? (
+        <Image
+          source={{ uri: activity.imageUrl! }}
+          style={styles.cardImg}
+          onError={() => setImgFailed(true)}
+        />
       ) : (
         (() => {
           const ph = placeholderFor({ title: activity.title, canonicalCategories: activity.canonicalCategories });

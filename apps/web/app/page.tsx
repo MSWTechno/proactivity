@@ -315,6 +315,7 @@ function LocationBar({
 }
 
 function ActivityCard({ a }: { a: Activity }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const place = [a.venueName, a.city].filter(Boolean).join(' · ');
@@ -322,11 +323,18 @@ function ActivityCard({ a }: { a: Activity }) {
   const price = formatPrice(a.costMinCents, a.costMaxCents, a.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(a.availability);
   const placeholder = placeholderFor({ title: a.title, canonicalCategories: a.canonicalCategories });
+  const showImage = a.imageUrl && !imgFailed;
 
   return (
     <a className="card" href={a.url ?? '#'} target="_blank" rel="noreferrer">
-      {a.imageUrl ? (
-        <img className="card-img" src={a.imageUrl} alt="" loading="lazy" />
+      {showImage ? (
+        <img
+          className="card-img"
+          src={a.imageUrl!}
+          alt=""
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+        />
       ) : (
         <div
           className="card-img card-img-placeholder"
