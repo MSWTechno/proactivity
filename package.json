@@ -14,6 +14,8 @@
     "sources:list": "pnpm --filter @proactivity/ingestion sources list",
     "sources:disable": "pnpm --filter @proactivity/ingestion sources disable",
     "sources:set": "pnpm --filter @proactivity/ingestion sources set",
+    "sync:env": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-env-to-vercel.ps1",
+    "deploy:prod": "vercel deploy --prod --cwd apps/web",
     "db:generate": "pnpm --filter @proactivity/db generate",
     "db:migrate": "pnpm --filter @proactivity/db migrate",
     "typecheck": "pnpm -r typecheck"
