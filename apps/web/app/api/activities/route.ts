@@ -179,14 +179,41 @@ function clampInt(n: number, min: number, max: number): number {
 }
 
 /**
- * Heuristic: does this look like a virtual/online event? Conservative — only
- * flag when there's a clear signal so we don't drop real in-person events.
+ * Heuristic: does this look like a virtual/online event? Wants high recall on
+ * actual virtual events while keeping false positives low. We DO exclude
+ * "virtual reality" experiences (which are in-person but use the word).
  */
 function isVirtualEvent(item: { title: string; description: string | null; venueName: string | null }): boolean {
-  const text = `${item.title} ${item.description ?? ''} ${item.venueName ?? ''}`.toLowerCase();
-  if (/\b(virtual|online)\s+(event|meeting|class|workshop|tour|session|gathering|program|trivia|conference|webinar)\b/.test(text)) return true;
-  if (/\b(webinar|livestream|live[- ]stream|streaming\s+(?:event|only))\b/.test(text)) return true;
-  if (/\bzoom\s+(meeting|link|call|webinar)\b/.test(text)) return true;
-  if (item.venueName && /^\s*(online|virtual|webinar|zoom)\s*$/i.test(item.venueName)) return true;
+  const title = item.title.toLowerCase();
+  const desc = (item.description ?? '').toLowerCase();
+  const venue = (item.venueName ?? '').toLowerCase();
+  const all = `${title} ${desc} ${venue}`;
+
+  // "virtual reality" is in-person — explicitly let those through.
+  if (/\bvirtual\s+reality\b/.test(all)) return false;
+
+  // Adverbial "virtually" is a strong signal (rarely used for in-person).
+  if (/\bvirtually\b/.test(all)) return true;
+
+  // Strong title signals: virtual/online/webinar/livestream in the title.
+  if (/\b(virtual|online|webinar|livestream|live\s*stream)\b/.test(title)) return true;
+
+  // "Join us online" / "join virtually" / "join the X virtually"
+  if (/\bjoin\b[^.!?]{0,40}\b(online|virtually)\b/.test(desc)) return true;
+
+  // "<virtual|online> <event-type>" pattern across all fields.
+  if (/\b(virtual|online)\s+(event|meeting|class|workshop|tour|session|gathering|program|trivia|conference|webinar|series|launch|presentation|talk|seminar|lecture|chat|discussion|panel|hangout|meetup|book\s*club)\b/.test(all)) return true;
+
+  // Standalone keywords that imply remote-only attendance.
+  if (/\b(webinar|livestream|live\s*stream|streaming\s+(?:event|only)|broadcast(?:ing)?\s+(?:live|only))\b/.test(all)) return true;
+  if (/\bzoom\s+(meeting|link|call|webinar|room)\b/.test(all)) return true;
+  if (/\bvia\s+(zoom|google\s+meet|microsoft\s+teams|webex|youtube\s+live)\b/.test(all)) return true;
+  if (/\bwatch\s+(?:online|live(?:\s+stream)?)\b/.test(all)) return true;
+  if (/\btune\s+in\s+(online|live|virtually|remotely)\b/.test(all)) return true;
+  if (/\b(remote-only|online-only)\b/.test(all)) return true;
+
+  // Venue is explicitly online.
+  if (item.venueName && /^\s*(online|virtual|webinar|zoom|youtube(\s+live)?|google\s+meet|teams)\s*$/i.test(item.venueName)) return true;
+
   return false;
 }
