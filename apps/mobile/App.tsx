@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,6 +23,9 @@ import { placeholderFor } from './lib/icons';
 
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity-web.vercel.app';
+
+const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';
+const STORAGE_INTERESTS = 'proactivity:interests:v1';
 
 interface Activity {
   id: string;
@@ -63,6 +67,8 @@ export default function App() {
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
   const [daysAhead, setDaysAhead] = useState(7);
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Fetch site-wide popularity order once on mount.
   useEffect(() => {
@@ -75,6 +81,44 @@ export default function App() {
         /* keep default order */
       });
   }, []);
+
+  // Onboarding check + pre-fill saved interests.
+  useEffect(() => {
+    (async () => {
+      try {
+        const [onboarded, interests] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_ONBOARDED),
+          AsyncStorage.getItem(STORAGE_INTERESTS),
+        ]);
+        if (onboarded === '1') {
+          if (interests) {
+            const arr = JSON.parse(interests) as CategoryKey[];
+            if (Array.isArray(arr) && arr.length > 0) {
+              setActiveCategories(new Set(arr.filter((k) => ALL_CATEGORY_KEYS.includes(k))));
+            }
+          }
+        } else {
+          setShowOnboarding(true);
+        }
+      } catch {
+        /* storage unavailable — proceed without onboarding */
+      } finally {
+        setOnboardingChecked(true);
+      }
+    })();
+  }, []);
+
+  const completeOnboarding = useCallback(async (skip = false) => {
+    setShowOnboarding(false);
+    try {
+      await AsyncStorage.setItem(STORAGE_ONBOARDED, '1');
+      if (!skip) {
+        await AsyncStorage.setItem(STORAGE_INTERESTS, JSON.stringify([...activeCategories]));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [activeCategories]);
 
   // Geolocation on mount.
   useEffect(() => {
@@ -282,6 +326,61 @@ export default function App() {
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
       )}
+
+      {showOnboarding && onboardingChecked && (
+        <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
+          <View style={styles.wordmarkRow}>
+            <View style={[styles.dot, { backgroundColor: t.accent }]} />
+            <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
+          </View>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>What interests you?</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
+            Pick a few — we'll show you events you'll love first. You can change this later.
+          </Text>
+          <ScrollView
+            contentContainerStyle={styles.onboardChips}
+            showsVerticalScrollIndicator={false}
+          >
+            {orderedCategories.map((key) => {
+              const c = CATEGORIES[key];
+              const active = activeCategories.has(key);
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => toggleCategory(key)}
+                  style={[
+                    styles.onboardChip,
+                    { borderColor: t.border, backgroundColor: t.elev },
+                    active && { backgroundColor: t.accent, borderColor: t.accent },
+                  ]}
+                >
+                  <Text style={[
+                    styles.onboardChipText,
+                    { color: t.fg },
+                    active && { color: '#fff' },
+                  ]}>
+                    {c.emoji}  {c.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Pressable
+            onPress={() => completeOnboarding(false)}
+            style={[styles.onboardPrimary, { backgroundColor: t.accent, opacity: activeCategories.size > 0 ? 1 : 0.55 }]}
+            disabled={activeCategories.size === 0}
+          >
+            <Text style={styles.onboardPrimaryText}>
+              {activeCategories.size > 0
+                ? `Continue (${activeCategories.size} selected)`
+                : 'Pick at least one'}
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => completeOnboarding(true)} style={styles.onboardSkip}>
+            <Text style={[styles.onboardSkipText, { color: t.muted }]}>Skip for now</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -451,4 +550,20 @@ const styles = StyleSheet.create({
   empty: { padding: 32, alignItems: 'center', marginTop: 16 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
   emptyBody: { fontSize: 13, textAlign: 'center' },
+  onboardOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    paddingTop: Platform.OS === 'ios' ? 80 : 50,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+  },
+  onboardTitle: { fontSize: 26, fontWeight: '700', letterSpacing: -0.5, marginTop: 24, marginBottom: 8 },
+  onboardSubtitle: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  onboardChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 20 },
+  onboardChip: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, marginRight: 4, marginBottom: 4 },
+  onboardChipText: { fontSize: 15 },
+  onboardPrimary: { paddingVertical: 14, paddingHorizontal: 20, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  onboardPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  onboardSkip: { paddingVertical: 12, alignItems: 'center' },
+  onboardSkipText: { fontSize: 13 },
 });
