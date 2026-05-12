@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         .map((s) => s.trim())
         .filter((s): s is CategoryKey => ALL_CATEGORY_KEYS.includes(s as CategoryKey))
     : [];
+  const includeVirtual = q.get('includeVirtual') === '1';
 
   const hasUserLocation = lat != null && lng != null;
   const effectiveSort = sort === 'distance' && !hasUserLocation ? 'time' : sort;
@@ -147,6 +148,7 @@ export async function GET(request: Request) {
   });
 
   const filtered = mapped.filter((item) => {
+    if (!includeVirtual && isVirtualEvent(item)) return false;
     if (requestedCategories.length > 0) {
       const hit = item.canonicalCategories.some((c) => requestedCategories.includes(c));
       if (!hit) return false;
@@ -174,4 +176,17 @@ function parseNum(v: string | null): number | null {
 
 function clampInt(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
+/**
+ * Heuristic: does this look like a virtual/online event? Conservative — only
+ * flag when there's a clear signal so we don't drop real in-person events.
+ */
+function isVirtualEvent(item: { title: string; description: string | null; venueName: string | null }): boolean {
+  const text = `${item.title} ${item.description ?? ''} ${item.venueName ?? ''}`.toLowerCase();
+  if (/\b(virtual|online)\s+(event|meeting|class|workshop|tour|session|gathering|program|trivia|conference|webinar)\b/.test(text)) return true;
+  if (/\b(webinar|livestream|live[- ]stream|streaming\s+(?:event|only))\b/.test(text)) return true;
+  if (/\bzoom\s+(meeting|link|call|webinar)\b/.test(text)) return true;
+  if (item.venueName && /^\s*(online|virtual|webinar|zoom)\s*$/i.test(item.venueName)) return true;
+  return false;
 }

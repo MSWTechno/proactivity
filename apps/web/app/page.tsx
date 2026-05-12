@@ -45,6 +45,21 @@ export default function HomePage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
+  // Site-wide popularity order, fetched once and frozen for the session so
+  // chips don't shuffle as you click.
+  const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
+
+  // Fetch site-wide popularity once on mount.
+  useEffect(() => {
+    fetch('/api/categories/popular')
+      .then((r) => (r.ok ? r.json() : { ordered: [] }))
+      .then((d: { ordered?: CategoryKey[] }) => {
+        if (d.ordered && d.ordered.length > 0) setOrderedCategories(d.ordered);
+      })
+      .catch(() => {
+        /* keep default order */
+      });
+  }, []);
   const [items, setItems] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -126,8 +141,19 @@ export default function HomePage() {
   function toggleCategory(key: CategoryKey) {
     setActiveCategories((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+        // Fire-and-forget — server aggregates clicks for sort ordering.
+        fetch('/api/categories/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        }).catch(() => {
+          /* ignore */
+        });
+      }
       return next;
     });
   }
@@ -202,7 +228,7 @@ export default function HomePage() {
         </div>
 
         <div className="categories" role="group" aria-label="Filter by category">
-          {ALL_CATEGORY_KEYS.map((key) => {
+          {orderedCategories.map((key) => {
             const c = CATEGORIES[key];
             const active = activeCategories.has(key);
             return (
@@ -326,8 +352,20 @@ function ActivityCard({ a }: { a: Activity }) {
   const placeholder = placeholderFor({ title: a.title, canonicalCategories: a.canonicalCategories });
   const showImage = a.imageUrl && !imgFailed;
 
+  const handleClick = () => {
+    // Fire-and-forget — track popularity, don't block the click.
+    fetch('/api/activities/click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: a.id }),
+      keepalive: true,
+    }).catch(() => {
+      /* ignore */
+    });
+  };
+
   return (
-    <a className="card" href={a.url ?? '#'} target="_blank" rel="noreferrer">
+    <a className="card" href={a.url ?? '#'} target="_blank" rel="noreferrer" onClick={handleClick}>
       {showImage ? (
         <img
           className="card-img"

@@ -71,6 +71,11 @@ export const activities = pgTable(
 
     raw: jsonb('raw').notNull(),
 
+    // Behind-the-scenes popularity counter, incremented when a user taps
+    // through to this event. Preserved across re-ingestions (not in the
+    // upsert SET clause).
+    clickCount: integer('click_count').notNull().default(0),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -82,7 +87,19 @@ export const activities = pgTable(
   }),
 );
 
+/**
+ * Aggregated click counts per category key. Used to order the chip row by
+ * site-wide popularity. Tiny table (one row per category) — no indexing
+ * beyond the primary key needed.
+ */
+export const categoryClicks = pgTable('category_clicks', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Source = typeof sources.$inferSelect;
 export type NewSource = typeof sources.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
+export type CategoryClick = typeof categoryClicks.$inferSelect;

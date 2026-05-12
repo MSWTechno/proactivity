@@ -62,6 +62,19 @@ export default function App() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
   const [daysAhead, setDaysAhead] = useState(7);
+  const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
+
+  // Fetch site-wide popularity order once on mount.
+  useEffect(() => {
+    fetch(`${API_BASE}/api/categories/popular`)
+      .then((r) => (r.ok ? r.json() : { ordered: [] }))
+      .then((d: { ordered?: CategoryKey[] }) => {
+        if (d.ordered && d.ordered.length > 0) setOrderedCategories(d.ordered);
+      })
+      .catch(() => {
+        /* keep default order */
+      });
+  }, []);
 
   // Geolocation on mount.
   useEffect(() => {
@@ -152,8 +165,19 @@ export default function App() {
   const toggleCategory = useCallback((key: CategoryKey) => {
     setActiveCategories((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+        // Fire-and-forget: server aggregates clicks for sort ordering.
+        fetch(`${API_BASE}/api/categories/click`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        }).catch(() => {
+          /* ignore */
+        });
+      }
       return next;
     });
   }, []);
@@ -209,7 +233,7 @@ export default function App() {
         style={styles.catScroll}
         contentContainerStyle={styles.catRow}
       >
-        {ALL_CATEGORY_KEYS.map((key) => {
+        {orderedCategories.map((key) => {
           const c = CATEGORIES[key];
           const active = activeCategories.has(key);
           return (
@@ -291,7 +315,15 @@ function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
 
   return (
     <Pressable
-      onPress={() => activity.url && Linking.openURL(activity.url).catch(() => {})}
+      onPress={() => {
+        // Fire-and-forget click tracking for site-wide popularity stats.
+        fetch(`${API_BASE}/api/activities/click`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: activity.id }),
+        }).catch(() => {});
+        if (activity.url) Linking.openURL(activity.url).catch(() => {});
+      }}
       style={({ pressed }) => [
         styles.card,
         { backgroundColor: t.elev, borderColor: t.border },
