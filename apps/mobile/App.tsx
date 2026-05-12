@@ -52,6 +52,7 @@ export default function App() {
   const t = colorScheme === 'dark' ? dark : light;
 
   const [geo, setGeo] = useState<GeoState>({ kind: 'idle' });
+  const [placeName, setPlaceName] = useState<string | null>(null);
   const [items, setItems] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +91,23 @@ export default function App() {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  // Reverse-geocode once location is known.
+  useEffect(() => {
+    if (geo.kind !== 'ok') return;
+    let cancelled = false;
+    fetch(`${API_BASE}/api/geocode/reverse?lat=${geo.lat}&lng=${geo.lng}`)
+      .then((r) => (r.ok ? r.json() : { name: '' }))
+      .then((d: { name?: string }) => {
+        if (!cancelled && d.name) setPlaceName(d.name);
+      })
+      .catch(() => {
+        /* silent — fall back to coords */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [geo]);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -148,7 +166,7 @@ export default function App() {
           <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
         </View>
         <Text style={[styles.tagline, { color: t.muted }]}>Things to do near you, this week.</Text>
-        <GeoBar geo={geo} t={t} />
+        <GeoBar geo={geo} placeName={placeName} t={t} />
       </View>
 
       <TextInput
@@ -243,10 +261,11 @@ export default function App() {
   );
 }
 
-function GeoBar({ geo, t }: { geo: GeoState; t: Theme }) {
+function GeoBar({ geo, placeName, t }: { geo: GeoState; placeName: string | null; t: Theme }) {
   let label = '';
-  if (geo.kind === 'ok') label = `📍 near ${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)}`;
-  else if (geo.kind === 'loading') label = 'Detecting location…';
+  if (geo.kind === 'ok') {
+    label = `📍 near ${placeName ?? `${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)}`}`;
+  } else if (geo.kind === 'loading') label = 'Detecting location…';
   else if (geo.kind === 'denied') label = 'Location declined — showing all events by time';
   else if (geo.kind === 'error') label = `Location error: ${geo.message}`;
   if (!label) return null;

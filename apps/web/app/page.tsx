@@ -33,6 +33,7 @@ type GeoState =
 
 export default function HomePage() {
   const [geo, setGeo] = useState<GeoState>({ kind: 'idle' });
+  const [placeName, setPlaceName] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     radiusKm: 25,
     daysAhead: 7,
@@ -60,6 +61,23 @@ export default function HomePage() {
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 },
     );
   }, []);
+
+  // Reverse-geocode once location is known.
+  useEffect(() => {
+    if (geo.kind !== 'ok') return;
+    let cancelled = false;
+    fetch(`/api/geocode/reverse?lat=${geo.lat}&lng=${geo.lng}`)
+      .then((r) => (r.ok ? r.json() : { name: '' }))
+      .then((d: { name?: string }) => {
+        if (!cancelled && d.name) setPlaceName(d.name);
+      })
+      .catch(() => {
+        /* silent — fall back to coords */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [geo]);
 
   // Debounce search input.
   useEffect(() => {
@@ -120,7 +138,7 @@ export default function HomePage() {
           <span className="dot" aria-hidden="true" />proactivity
         </h1>
         <p className="tagline">Things to do near you, this week.</p>
-        <LocationBar geo={geo} onRetry={() => window.location.reload()} />
+        <LocationBar geo={geo} placeName={placeName} onRetry={() => window.location.reload()} />
       </header>
 
       <div className="controls">
@@ -268,11 +286,18 @@ function dayLabel(date: Date): string {
 
 // ----- components -----
 
-function LocationBar({ geo, onRetry }: { geo: GeoState; onRetry: () => void }) {
+function LocationBar({
+  geo,
+  placeName,
+  onRetry,
+}: {
+  geo: GeoState;
+  placeName: string | null;
+  onRetry: () => void;
+}) {
   if (geo.kind === 'ok') {
-    return (
-      <p className="loc">📍 near {geo.lat.toFixed(2)}, {geo.lng.toFixed(2)}</p>
-    );
+    const label = placeName ?? `${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)}`;
+    return <p className="loc">📍 near {label}</p>;
   }
   if (geo.kind === 'loading') return <p className="loc">Detecting your location…</p>;
   if (geo.kind === 'denied') {
