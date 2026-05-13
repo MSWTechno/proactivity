@@ -91,10 +91,13 @@ export async function GET(request: Request) {
 
   const dest = new URL('/admin/moderate', reqUrl);
   const res = NextResponse.redirect(dest);
+  // SameSite=Lax (not Strict) so the cookie is included on the immediate
+  // top-level redirect following the OAuth chain. Strict would block it
+  // here because the redirect chain originated at accounts.google.com.
   res.cookies.set(ADMIN_COOKIE_NAME, token, {
     httpOnly: true,
     secure: true,
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/',
     maxAge: ADMIN_COOKIE_MAX_AGE_S,
   });
