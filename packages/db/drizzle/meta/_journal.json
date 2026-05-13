@@ -50,6 +50,13 @@
       "when": 1778683542817,
       "tag": "0006_elite_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778686347610,
+      "tag": "0007_secret_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

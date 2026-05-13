@@ -64,6 +64,20 @@ export default function HomePage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [me, setMe] = useState<{ id: string; email: string; name: string | null } | null>(null);
+
+  // Fetch current user once on mount.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : { user: null }))
+      .then((d: { user: typeof me }) => setMe(d.user))
+      .catch(() => { /* not signed in */ });
+  }, []);
+
+  const signOut = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setMe(null);
+  };
 
   // Fetch site-wide popularity once on mount.
   useEffect(() => {
@@ -216,13 +230,22 @@ export default function HomePage() {
             </h1>
             <p className="tagline">Things to do near you, this week.</p>
           </div>
-          <button
-            type="button"
-            className="header-cta"
-            onClick={() => setShowSubmitForm(true)}
-          >
-            Submit your event
-          </button>
+          <div className="header-actions">
+            <button
+              type="button"
+              className="header-cta"
+              onClick={() => setShowSubmitForm(true)}
+            >
+              Submit your event
+            </button>
+            {me ? (
+              <button type="button" className="header-account" onClick={signOut} title={me.email}>
+                {me.name || me.email.split('@')[0]} · sign out
+              </button>
+            ) : (
+              <a href="/login" className="header-account">Sign in</a>
+            )}
+          </div>
         </div>
         <LocationBar geo={geo} placeName={placeName} onRetry={() => window.location.reload()} />
       </header>
@@ -337,11 +360,12 @@ export default function HomePage() {
       {ratingTarget && (
         <RatingModal
           activity={ratingTarget}
+          me={me}
           onClose={() => setRatingTarget(null)}
         />
       )}
 
-      {showSubmitForm && <SubmitEventModal onClose={() => setShowSubmitForm(false)} />}
+      {showSubmitForm && <SubmitEventModal me={me} onClose={() => setShowSubmitForm(false)} />}
 
       {items && items.length > 0 && (
         <footer className="footer">
@@ -459,9 +483,15 @@ function LocationBar({
   return null;
 }
 
-function SubmitEventModal({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+function SubmitEventModal({
+  me,
+  onClose,
+}: {
+  me: { id: string; email: string; name: string | null } | null;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(me?.name ?? '');
+  const [email, setEmail] = useState(me?.email ?? '');
   const [organization, setOrganization] = useState('');
   const [eventUrl, setEventUrl] = useState('');
   const [message, setMessage] = useState('');
@@ -633,12 +663,20 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
   );
 }
 
-function RatingModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
+function RatingModal({
+  activity,
+  me,
+  onClose,
+}: {
+  activity: Activity;
+  me: { id: string; email: string; name: string | null } | null;
+  onClose: () => void;
+}) {
   const [target, setTarget] = useState<'event' | 'organizer'>('event');
   const [score, setScore] = useState(0);
   const [review, setReview] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState(me?.name ?? '');
+  const [email, setEmail] = useState(me?.email ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);

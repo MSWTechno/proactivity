@@ -119,6 +119,7 @@ export async function GET(request: Request) {
         AND target_key = SPLIT_PART(a.source_event_id, '::', 1)
         AND status = 'approved'
     ) r ON true
+    -- Drop events with no canonical URL — they'd render as dead "#" links.
     LEFT JOIN LATERAL (
       SELECT AVG(score)::float8 AS avg_score, COUNT(*)::int AS cnt
       FROM ratings
@@ -127,7 +128,8 @@ export async function GET(request: Request) {
         AND a.organizer_key IS NOT NULL
         AND status = 'approved'
     ) org_r ON true
-    WHERE a.start_at >= now()
+    WHERE a.url IS NOT NULL AND a.url <> ''
+      AND a.start_at >= now()
       AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')
       ${availabilityFilter}
       ${radiusFilter}

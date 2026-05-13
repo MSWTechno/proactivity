@@ -88,8 +88,15 @@ main {
   gap: 16px;
 }
 
-.header-cta {
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   flex-shrink: 0;
+  margin-top: 4px;
+}
+.header-cta {
   padding: 8px 14px;
   background: var(--accent-soft);
   color: var(--accent-fg);
@@ -99,12 +106,21 @@ main {
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s;
-  margin-top: 4px;
 }
 .header-cta:hover {
   background: var(--accent);
   color: white;
 }
+.header-account {
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+.header-account:hover { color: var(--accent); text-decoration: underline; }
 
 .wordmark {
   display: flex;

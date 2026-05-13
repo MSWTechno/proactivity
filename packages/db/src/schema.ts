@@ -151,6 +151,22 @@ export const ratings = pgTable(
 );
 
 /**
+ * Magic-link authenticated users. Auth tokens are stateless HMAC-signed,
+ * so we don't need a tokens/sessions table — just a record of who's signed
+ * in.
+ */
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull().unique(),
+    name: text('name'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  },
+);
+
+/**
  * "Submit your event" form submissions from organizers. Admin reviews
  * (via CLI for now) and either adds them as a proper source/activity or
  * rejects with a note.
@@ -185,3 +201,5 @@ export type Rating = typeof ratings.$inferSelect;
 export type NewRating = typeof ratings.$inferInsert;
 export type ContactSubmission = typeof contactSubmissions.$inferSelect;
 export type NewContactSubmission = typeof contactSubmissions.$inferInsert;
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
