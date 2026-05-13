@@ -1,0 +1,1 @@
+ALTER TABLE "activities" ADD COLUMN "is_virtual" boolean DEFAULT false NOT NULL;

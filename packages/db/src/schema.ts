@@ -73,6 +73,11 @@ export const activities = pgTable(
     // 'sold_out' / 'cancelled' / 'unknown' = excluded from default UI filter.
     availability: text('availability').notNull().default('unknown'),
 
+    // Set by adapters when source data explicitly marks an event as virtual
+    // (e.g. JSON-LD eventAttendanceMode: OnlineEventAttendanceMode).
+    // API filter excludes these by default unless ?includeVirtual=1.
+    isVirtual: boolean('is_virtual').notNull().default(false),
+
     url: text('url'),
     imageUrl: text('image_url'),
     categories: text('categories').array(),

@@ -43,6 +43,13 @@
       "when": 1778681306971,
       "tag": "0005_medical_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778683542817,
+      "tag": "0006_elite_butterfly",
+      "breakpoints": true
     }
   ]
 }

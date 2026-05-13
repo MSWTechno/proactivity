@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Logo } from '../../Logo';
 
 interface PendingRating {
   id: string;
@@ -99,7 +100,7 @@ export default function ModerationDashboard() {
     <main className="admin-main">
       <header className="admin-header">
         <h1 className="wordmark">
-          <span className="dot" aria-hidden="true" />proactivity <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontSize: 18 }}>admin</span>
+          <Logo size={26} className="wordmark-logo" />proactivity <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontSize: 18 }}>admin</span>
         </h1>
         <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
       </header>

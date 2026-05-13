@@ -17,6 +17,7 @@ interface ActivityRow {
   region: string | null;
   age_min: number | null;
   age_max: number | null;
+  is_virtual: boolean;
   cost_min_cents: number | null;
   cost_max_cents: number | null;
   currency: string | null;
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
       a.id, a.title, a.description, a.start_at, a.end_at, a.timezone,
       a.venue_name, a.city, a.region,
       a.age_min, a.age_max,
+      a.is_virtual,
       a.cost_min_cents, a.cost_max_cents, a.currency, a.availability,
       a.url, a.image_url, a.categories,
       a.organizer_name, a.organizer_url, a.organizer_key,
@@ -161,6 +163,7 @@ export async function GET(request: Request) {
       ageMin: r.age_min,
       ageMax: r.age_max,
       ageRange,
+      isVirtual: r.is_virtual,
       costMinCents: r.cost_min_cents,
       costMaxCents: r.cost_max_cents,
       currency: r.currency,
@@ -187,7 +190,7 @@ export async function GET(request: Request) {
   });
 
   const filtered = mapped.filter((item) => {
-    if (!includeVirtual && isVirtualEvent(item)) return false;
+    if (!includeVirtual && (item.isVirtual || isVirtualEvent(item))) return false;
     if (requestedCategories.length > 0) {
       const hit = item.canonicalCategories.some((c) => requestedCategories.includes(c));
       if (!hit) return false;

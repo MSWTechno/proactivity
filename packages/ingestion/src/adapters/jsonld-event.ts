@@ -301,6 +301,7 @@ function mapToActivity(
     : null;
   const priceMax = offers ? parsePrice(offers.highPrice ?? offers.price) : null;
   const availability = mapAvailability(ev, defaultAvailability);
+  const isVirtual = detectVirtual(ev);
 
   const addr = typeof ev.location?.address === 'object' ? ev.location.address : null;
   const addressString = typeof ev.location?.address === 'string'
@@ -333,6 +334,7 @@ function mapToActivity(
     costMaxCents: priceMax,
     currency: offers?.priceCurrency ?? null,
     availability,
+    isVirtual,
     organizerName: pickOrganizer(ev.organizer)?.name ?? null,
     organizerUrl: pickOrganizer(ev.organizer)?.url ?? null,
     organizerKey: null, // runner derives from name/url
@@ -395,6 +397,23 @@ function parsePrice(v: string | number | undefined): number | null {
   const n = typeof v === 'number' ? v : Number(v);
   if (!Number.isFinite(n)) return null;
   return Math.round(n * 100);
+}
+
+function detectVirtual(ev: EventLd): boolean {
+  // schema.org/Event eventAttendanceMode IRIs:
+  //   - OfflineEventAttendanceMode  → in-person (in-scope)
+  //   - OnlineEventAttendanceMode   → virtual
+  //   - MixedEventAttendanceMode    → hybrid — treat as virtual since the
+  //     in-person part may be elsewhere
+  const mode = ev.eventAttendanceMode;
+  if (typeof mode === 'string') {
+    if (/OnlineEventAttendanceMode|MixedEventAttendanceMode/i.test(mode)) return true;
+  }
+  // Some sources publish `location: { '@type': 'VirtualLocation', url: '...' }`.
+  const loc = ev.location;
+  const locType = typeof loc === 'object' && loc ? (loc as { '@type'?: string })['@type'] : undefined;
+  if (typeof locType === 'string' && /VirtualLocation/i.test(locType)) return true;
+  return false;
 }
 
 function mapAvailability(

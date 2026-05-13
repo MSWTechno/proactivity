@@ -31,6 +31,12 @@ export interface NormalizedActivity {
    */
   availability: 'onsale' | 'free' | 'dropin' | 'sold_out' | 'cancelled' | 'unknown';
   /**
+   * True when the source explicitly marks this event as virtual/online
+   * (e.g. JSON-LD eventAttendanceMode: OnlineEventAttendanceMode).
+   * The API filter excludes these by default.
+   */
+  isVirtual?: boolean;
+  /**
    * Organizer / host identity. Adapters extract these when available;
    * the runner derives organizerKey from URL slug (preferred) or name
    * slug if not explicitly set.

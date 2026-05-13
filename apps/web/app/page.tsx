@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, type CategoryKey, ALL_CATEGORY_KEYS } from '@/lib/categories';
 import { placeholderFor } from '@/lib/icons';
+import { Logo } from './Logo';
 
 interface Activity {
   id: string;
@@ -211,7 +212,7 @@ export default function HomePage() {
         <div className="hero-row">
           <div>
             <h1 className="wordmark">
-              <span className="dot" aria-hidden="true" />proactivity
+              <Logo size={26} className="wordmark-logo" />proactivity
             </h1>
             <p className="tagline">Things to do near you, this week.</p>
           </div>
@@ -357,7 +358,7 @@ export default function HomePage() {
         <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
           <div className="onboarding-card">
             <h1 className="wordmark" style={{ marginBottom: 8 }}>
-              <span className="dot" aria-hidden="true" />proactivity
+              <Logo size={26} className="wordmark-logo" />proactivity
             </h1>
             <h2 id="onboarding-title" className="onboarding-title">What interests you?</h2>
             <p className="onboarding-sub">

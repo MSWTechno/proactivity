@@ -244,7 +244,7 @@ export default function App() {
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <View style={styles.wordmarkRow}>
-              <View style={[styles.dot, { backgroundColor: t.accent }]} />
+              <Logo size={22} color={t.accent} />
               <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
             </View>
             <Text style={[styles.tagline, { color: t.muted }]}>Things to do near you, this week.</Text>
@@ -366,7 +366,7 @@ export default function App() {
       {showOnboarding && onboardingChecked && (
         <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
           <View style={styles.wordmarkRow}>
-            <View style={[styles.dot, { backgroundColor: t.accent }]} />
+            <Logo size={22} color={t.accent} />
             <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
           </View>
           <Text style={[styles.onboardTitle, { color: t.fg }]}>What interests you?</Text>
@@ -781,6 +781,38 @@ function formatPrice(min: number | null, max: number | null, currency: string | 
     new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(cents / 100);
   if (min != null && max != null && min !== max) return `${fmt(min)}–${fmt(max)}`;
   return fmt((min ?? max) as number);
+}
+
+function Logo({ size = 22, color }: { size?: number; color: string }) {
+  // Triangle proportions tuned to match the SVG version on web.
+  const triH = size * 0.36; // triangle height (top+bottom borders)
+  const triW = size * 0.3;  // triangle width (left border)
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: color,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderTopWidth: triH / 2,
+          borderBottomWidth: triH / 2,
+          borderLeftWidth: triW,
+          borderTopColor: 'transparent',
+          borderBottomColor: 'transparent',
+          borderLeftColor: '#ffffff',
+          marginLeft: size * 0.08, // optical balance
+        }}
+      />
+    </View>
+  );
 }
 
 // ----- theme -----

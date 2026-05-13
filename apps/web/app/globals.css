@@ -124,6 +124,12 @@ main {
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
+.wordmark-logo {
+  color: var(--accent);
+  vertical-align: -5px; /* optical center the icon with the text baseline */
+  margin-right: 2px;
+}
+
 .tagline {
   margin: 4px 0 0;
   color: var(--fg-muted);

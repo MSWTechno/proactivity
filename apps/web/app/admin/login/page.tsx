@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { Logo } from '../../Logo';
 
 function LoginCard() {
   const params = useSearchParams();
@@ -9,7 +10,7 @@ function LoginCard() {
   return (
     <>
       <h1 className="wordmark" style={{ marginBottom: 20 }}>
-        <span className="dot" aria-hidden="true" />proactivity{' '}
+        <Logo size={26} className="wordmark-logo" />proactivity{' '}
         <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontSize: 18 }}>admin</span>
       </h1>
       <p className="onboarding-sub" style={{ marginBottom: 20 }}>
