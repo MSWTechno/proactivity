@@ -110,6 +110,8 @@ async function upsertBatch(sourceId: string, items: NormalizedActivity[]): Promi
     )
     .onConflictDoUpdate({
       target: [activities.sourceId, activities.sourceEventId],
+      // Don't clobber rows admins (or approved organizer drafts) have edited.
+      setWhere: drizzleSql`activities.manual_override = false`,
       set: {
         title: drizzleSql`excluded.title`,
         description: drizzleSql`excluded.description`,

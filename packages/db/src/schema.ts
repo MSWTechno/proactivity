@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   geometry,
   index,
   integer,
@@ -88,6 +89,11 @@ export const activities = pgTable(
     // through to this event. Preserved across re-ingestions (not in the
     // upsert SET clause).
     clickCount: integer('click_count').notNull().default(0),
+
+    // When true, this row was edited by an admin (or via an approved
+    // organizer draft) and re-ingestion should NOT overwrite its fields.
+    // Enforced in the ingestion upsert via a WHERE clause on conflict.
+    manualOverride: boolean('manual_override').notNull().default(false),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -260,3 +266,61 @@ export const organizerClaims = pgTable(
 
 export type OrganizerClaim = typeof organizerClaims.$inferSelect;
 export type NewOrganizerClaim = typeof organizerClaims.$inferInsert;
+
+/**
+ * Pending event submission or edit from a claimed organizer. Drafts are
+ * not visible publicly — admin reviews and approves, at which point the
+ * draft is applied to the activities table (insert for activityId=null,
+ * update otherwise). Approved updates set manual_override=true on the
+ * activity so re-ingestion of scraped sources won't clobber them.
+ */
+export const eventDrafts = pgTable(
+  'event_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    // The organizer this draft is for — must match an approved claim
+    // belonging to userId at submit time.
+    organizerKey: text('organizer_key').notNull(),
+    // null = new event submission; set = proposed edit to existing event.
+    activityId: uuid('activity_id').references(() => activities.id, { onDelete: 'cascade' }),
+
+    title: text('title'),
+    description: text('description'),
+    startAt: timestamp('start_at', { withTimezone: true }),
+    endAt: timestamp('end_at', { withTimezone: true }),
+    timezone: text('timezone'),
+    venueName: text('venue_name'),
+    address: text('address'),
+    city: text('city'),
+    region: text('region'),
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    ageMin: integer('age_min'),
+    ageMax: integer('age_max'),
+    costMinCents: integer('cost_min_cents'),
+    costMaxCents: integer('cost_max_cents'),
+    currency: text('currency'),
+    availability: text('availability'),
+    organizerName: text('organizer_name'),
+    organizerUrl: text('organizer_url'),
+    url: text('url'),
+    imageUrl: text('image_url'),
+    categories: text('categories').array(),
+
+    // 'pending' | 'approved' | 'rejected'
+    status: text('status').notNull().default('pending'),
+    moderatorNote: text('moderator_note'),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => ({
+    statusIdx: index('event_drafts_status_idx').on(t.status, t.createdAt),
+    userStatusIdx: index('event_drafts_user_status_idx').on(t.userId, t.status),
+    activityIdx: index('event_drafts_activity_idx').on(t.activityId),
+  }),
+);
+
+export type EventDraft = typeof eventDrafts.$inferSelect;
+export type NewEventDraft = typeof eventDrafts.$inferInsert;

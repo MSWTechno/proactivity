@@ -39,11 +39,41 @@ interface PendingClaim {
   createdAt: string;
 }
 
+interface DraftFields {
+  title: string | null;
+  description: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  venueName: string | null;
+  address: string | null;
+  city: string | null;
+  region: string | null;
+  costMinCents: number | null;
+  costMaxCents: number | null;
+  availability: string | null;
+  organizerName: string | null;
+  organizerUrl: string | null;
+  url: string | null;
+  imageUrl: string | null;
+  categories: string[] | null;
+}
+
+interface PendingDraft {
+  id: string;
+  organizerKey: string;
+  activityId: string | null;
+  submitter: { email: string | null; name: string | null };
+  proposed: DraftFields;
+  existing: DraftFields | null;
+  createdAt: string;
+}
+
 export default function ModerationDashboard() {
   const router = useRouter();
   const [ratings, setRatings] = useState<PendingRating[]>([]);
   const [submissions, setSubmissions] = useState<NewSubmission[]>([]);
   const [claims, setClaims] = useState<PendingClaim[]>([]);
+  const [drafts, setDrafts] = useState<PendingDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -52,9 +82,12 @@ export default function ModerationDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/admin/queue');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as {
+      const [queueRes, draftRes] = await Promise.all([
+        fetch('/api/admin/queue'),
+        fetch('/api/admin/event-drafts'),
+      ]);
+      if (!queueRes.ok) throw new Error(`HTTP ${queueRes.status}`);
+      const data = (await queueRes.json()) as {
         ratings: PendingRating[];
         submissions: NewSubmission[];
         claims: PendingClaim[];
@@ -62,6 +95,10 @@ export default function ModerationDashboard() {
       setRatings(data.ratings);
       setSubmissions(data.submissions);
       setClaims(data.claims ?? []);
+      if (draftRes.ok) {
+        const dd = (await draftRes.json()) as { drafts: PendingDraft[] };
+        setDrafts(dd.drafts ?? []);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -100,6 +137,27 @@ export default function ModerationDashboard() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setClaims((cs) => cs.filter((c) => c.id !== id));
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const moderateDraft = async (id: string, action: 'approve' | 'reject') => {
+    setBusyId(id);
+    try {
+      const note = action === 'reject' ? window.prompt('Optional note for the organizer:') ?? undefined : undefined;
+      const res = await fetch(`/api/admin/event-drafts/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, note }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setDrafts((ds) => ds.filter((d) => d.id !== id));
     } catch (e) {
       alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -236,6 +294,56 @@ export default function ModerationDashboard() {
 
       <section className="admin-section">
         <h2 className="admin-section-title">
+          Organizer event drafts <span className="admin-section-count">{loading ? '…' : drafts.length}</span>
+        </h2>
+        {!loading && drafts.length === 0 && (
+          <p className="admin-empty">Nothing to review.</p>
+        )}
+        <div className="admin-list">
+          {drafts.map((d) => (
+            <article key={d.id} className="admin-card">
+              <div className="admin-card-head">
+                <span className="admin-card-from">
+                  {d.submitter.name ?? '(no name)'}{' '}
+                  {d.submitter.email && (
+                    <a href={`mailto:${d.submitter.email}`} className="admin-card-email">&lt;{d.submitter.email}&gt;</a>
+                  )}
+                </span>
+                <span className="admin-card-meta">
+                  {d.activityId ? 'Edit' : 'New event'} · {new Date(d.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <p className="admin-card-context">
+                <strong>{d.proposed.title ?? '(no title)'}</strong>
+                {d.proposed.startAt && (
+                  <> · {new Date(d.proposed.startAt).toLocaleString(undefined, {
+                    month: 'short', day: 'numeric', year: 'numeric',
+                    hour: 'numeric', minute: '2-digit',
+                  })}</>
+                )}
+              </p>
+              <DraftDiff proposed={d.proposed} existing={d.existing} />
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-approve"
+                  disabled={busyId === d.id}
+                  onClick={() => moderateDraft(d.id, 'approve')}
+                >Approve & publish</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-reject"
+                  disabled={busyId === d.id}
+                  onClick={() => moderateDraft(d.id, 'reject')}
+                >Reject</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <h2 className="admin-section-title">
           New event submissions <span className="admin-section-count">{loading ? '…' : submissions.length}</span>
         </h2>
         {!loading && submissions.length === 0 && (
@@ -283,5 +391,63 @@ export default function ModerationDashboard() {
         </div>
       </section>
     </main>
+  );
+}
+
+function DraftDiff({ proposed, existing }: { proposed: DraftFields; existing: DraftFields | null }) {
+  // For new submissions (existing=null), just show the proposed fields as a summary.
+  // For edits, show only the fields that changed.
+  const FIELDS: { key: keyof DraftFields; label: string; fmt?: (v: unknown) => string }[] = [
+    { key: 'title', label: 'Title' },
+    { key: 'description', label: 'Description' },
+    { key: 'startAt', label: 'Start', fmt: (v) => v ? new Date(v as string).toLocaleString() : '' },
+    { key: 'endAt', label: 'End', fmt: (v) => v ? new Date(v as string).toLocaleString() : '' },
+    { key: 'venueName', label: 'Venue' },
+    { key: 'address', label: 'Address' },
+    { key: 'city', label: 'City' },
+    { key: 'region', label: 'Region' },
+    { key: 'costMinCents', label: 'Cost min', fmt: (v) => v == null ? '' : `$${((v as number) / 100).toFixed(2)}` },
+    { key: 'costMaxCents', label: 'Cost max', fmt: (v) => v == null ? '' : `$${((v as number) / 100).toFixed(2)}` },
+    { key: 'availability', label: 'Availability' },
+    { key: 'url', label: 'URL' },
+    { key: 'imageUrl', label: 'Image URL' },
+    { key: 'organizerName', label: 'Organizer' },
+    { key: 'organizerUrl', label: 'Organizer URL' },
+    { key: 'categories', label: 'Categories', fmt: (v) => Array.isArray(v) ? (v as string[]).join(', ') : (v as string) ?? '' },
+  ];
+
+  const rows: { label: string; old: string; new: string }[] = [];
+  for (const f of FIELDS) {
+    const newVal = proposed[f.key];
+    const oldVal = existing ? existing[f.key] : null;
+    const newStr = f.fmt ? f.fmt(newVal) : (newVal as string) ?? '';
+    const oldStr = f.fmt ? f.fmt(oldVal) : (oldVal as string) ?? '';
+    if (existing == null) {
+      if (newStr) rows.push({ label: f.label, old: '', new: newStr });
+    } else if (newStr !== oldStr) {
+      rows.push({ label: f.label, old: oldStr, new: newStr });
+    }
+  }
+
+  if (rows.length === 0) {
+    return <p className="admin-card-context" style={{ color: 'var(--fg-muted)', fontSize: 12 }}>(no field changes)</p>;
+  }
+
+  return (
+    <div className="draft-diff">
+      {rows.map((r) => (
+        <div key={r.label} className="draft-diff-row">
+          <div className="draft-diff-label">{r.label}</div>
+          {existing && (
+            <div className="draft-diff-old">
+              <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>was:</span> {r.old || <em style={{ color: 'var(--fg-subtle)' }}>(empty)</em>}
+            </div>
+          )}
+          <div className="draft-diff-new">
+            {existing && <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>new:</span>} {r.new || <em style={{ color: 'var(--fg-subtle)' }}>(empty)</em>}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

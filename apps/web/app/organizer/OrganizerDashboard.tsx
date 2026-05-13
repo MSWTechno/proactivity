@@ -27,6 +27,29 @@ interface Organization {
   totalClicks: number;
 }
 
+interface OrgEvent {
+  id: string;
+  title: string;
+  startAt: string;
+  venueName: string | null;
+  city: string | null;
+  url: string | null;
+  availability: string;
+  organizerKey: string;
+  manualOverride: boolean;
+}
+
+interface DraftSummary {
+  id: string;
+  organizerKey: string;
+  activityId: string | null;
+  title: string | null;
+  startAt: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  moderatorNote: string | null;
+  createdAt: string;
+}
+
 const FREE_TIER_CLICK_LIMIT = 100;
 
 export default function OrganizerDashboard() {
@@ -167,12 +190,351 @@ export default function OrganizerDashboard() {
         </div>
       </section>
 
+      {approvedClaims.length > 0 && (
+        <EventsSection approvedClaims={approvedClaims} />
+      )}
+
       {noAdsActive && (
         <p style={{ marginTop: 24, color: 'var(--fg-muted)', fontSize: 12 }}>
           You also have Proactivity Plus (ad-free) active.
         </p>
       )}
     </main>
+  );
+}
+
+/**
+ * Per-organizer events management — list existing events with "Edit"
+ * actions and a button to submit a brand-new event draft. All changes go
+ * through admin moderation; this section also shows pending drafts.
+ */
+function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
+  const [events, setEvents] = useState<OrgEvent[]>([]);
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState<string | null>(null); // organizerKey
+  const [editing, setEditing] = useState<OrgEvent | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch('/api/organizer/events').then((r) => r.json());
+    setEvents(res.events ?? []);
+    setDrafts(res.drafts ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const pendingDraftForActivity = (activityId: string) =>
+    drafts.find((d) => d.activityId === activityId && d.status === 'pending');
+
+  return (
+    <section className="admin-section">
+      <h2 className="admin-section-title">
+        Your events <span className="admin-section-count">{loading ? '…' : events.length}</span>
+      </h2>
+      <p className="onboarding-sub" style={{ marginTop: -6, marginBottom: 16 }}>
+        Add new events or edit existing ones. All changes are reviewed by an admin before going live.
+      </p>
+
+      {drafts.filter((d) => d.status === 'pending').length > 0 && (
+        <div className="organizer-pending-banner">
+          You have {drafts.filter((d) => d.status === 'pending').length} pending change{drafts.filter((d) => d.status === 'pending').length === 1 ? '' : 's'} awaiting admin review.
+        </div>
+      )}
+
+      {approvedClaims.map((c) => {
+        const orgEvents = events.filter((e) => e.organizerKey === c.organizerKey);
+        return (
+          <div key={c.organizerKey} className="organizer-events-block">
+            <div className="organizer-events-head">
+              <strong>{c.organizerName ?? c.organizerKey}</strong>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => { setAdding(c.organizerKey); setEditing(null); }}
+                style={{ marginTop: 0, padding: '6px 12px', fontSize: 12 }}
+              >
+                + Add event
+              </button>
+            </div>
+            {orgEvents.length === 0 && (
+              <p className="admin-empty" style={{ marginTop: 4 }}>No events yet for this organizer.</p>
+            )}
+            <div className="organizer-event-list">
+              {orgEvents.map((e) => {
+                const pending = pendingDraftForActivity(e.id);
+                return (
+                  <div key={e.id} className="organizer-event-row">
+                    <div>
+                      <div style={{ fontWeight: 500 }}>{e.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                        {new Date(e.startAt).toLocaleString(undefined, {
+                          month: 'short', day: 'numeric', year: 'numeric',
+                          hour: 'numeric', minute: '2-digit',
+                        })}
+                        {e.venueName && ` · ${e.venueName}`}
+                        {e.manualOverride && <span className="admin-tag" style={{ marginLeft: 6 }}>edited</span>}
+                      </div>
+                      {pending && (
+                        <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>
+                          ⏳ Edit pending review
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-tab"
+                      onClick={() => { setEditing(e); setAdding(null); }}
+                      style={{ fontSize: 12 }}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {drafts.filter((d) => d.status === 'rejected').length > 0 && (
+        <details style={{ marginTop: 16 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--fg-muted)' }}>
+            Recent rejections ({drafts.filter((d) => d.status === 'rejected').length})
+          </summary>
+          <div style={{ marginTop: 8, fontSize: 12 }}>
+            {drafts.filter((d) => d.status === 'rejected').slice(0, 10).map((d) => (
+              <div key={d.id} style={{ padding: 8, borderLeft: '2px solid var(--danger-fg, #c44)', marginBottom: 6 }}>
+                <div>{d.title ?? '(new event)'}</div>
+                {d.moderatorNote && <div style={{ color: 'var(--fg-muted)' }}>Note: {d.moderatorNote}</div>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {(adding || editing) && (
+        <DraftForm
+          mode={editing ? 'edit' : 'new'}
+          organizerKey={adding ?? editing!.organizerKey}
+          activityId={editing?.id ?? null}
+          onClose={() => { setAdding(null); setEditing(null); }}
+          onSubmitted={() => { setAdding(null); setEditing(null); load(); }}
+        />
+      )}
+    </section>
+  );
+}
+
+interface DraftFormValues {
+  title: string;
+  description: string;
+  startAt: string;
+  endAt: string;
+  url: string;
+  imageUrl: string;
+  venueName: string;
+  address: string;
+  city: string;
+  region: string;
+  organizerName: string;
+  organizerUrl: string;
+  costMin: string;
+  costMax: string;
+  availability: string;
+  categories: string;
+}
+
+const EMPTY_VALUES: DraftFormValues = {
+  title: '', description: '', startAt: '', endAt: '', url: '', imageUrl: '',
+  venueName: '', address: '', city: '', region: '',
+  organizerName: '', organizerUrl: '',
+  costMin: '', costMax: '', availability: 'onsale', categories: '',
+};
+
+function toLocalDateTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function DraftForm({
+  mode,
+  organizerKey,
+  activityId,
+  onClose,
+  onSubmitted,
+}: {
+  mode: 'new' | 'edit';
+  organizerKey: string;
+  activityId: string | null;
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
+  const [values, setValues] = useState<DraftFormValues>(EMPTY_VALUES);
+  const [loading, setLoading] = useState(mode === 'edit');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'edit' || !activityId) return;
+    fetch(`/api/organizer/events/${activityId}`)
+      .then((r) => r.json() as Promise<{ event?: Record<string, unknown>; error?: string }>)
+      .then((d) => {
+        if (!d.event) throw new Error(d.error ?? 'Failed to load');
+        const e = d.event as {
+          title: string; description: string | null; startAt: string; endAt: string | null;
+          url: string | null; imageUrl: string | null; venueName: string | null;
+          address: string | null; city: string | null; region: string | null;
+          organizerName: string | null; organizerUrl: string | null;
+          costMinCents: number | null; costMaxCents: number | null;
+          availability: string; categories: string[] | null;
+        };
+        setValues({
+          title: e.title,
+          description: e.description ?? '',
+          startAt: toLocalDateTime(e.startAt),
+          endAt: toLocalDateTime(e.endAt),
+          url: e.url ?? '',
+          imageUrl: e.imageUrl ?? '',
+          venueName: e.venueName ?? '',
+          address: e.address ?? '',
+          city: e.city ?? '',
+          region: e.region ?? '',
+          organizerName: e.organizerName ?? '',
+          organizerUrl: e.organizerUrl ?? '',
+          costMin: e.costMinCents != null ? (e.costMinCents / 100).toString() : '',
+          costMax: e.costMaxCents != null ? (e.costMaxCents / 100).toString() : '',
+          availability: e.availability,
+          categories: e.categories?.join(', ') ?? '',
+        });
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [mode, activityId]);
+
+  const set = (name: keyof DraftFormValues, v: string) =>
+    setValues((prev) => ({ ...prev, [name]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!values.title.trim()) { setError('Title is required.'); return; }
+    if (!values.startAt) { setError('Start date/time is required.'); return; }
+    setSubmitting(true);
+    try {
+      const payload = { ...values, organizerKey };
+      const url = mode === 'edit' && activityId
+        ? `/api/organizer/events/${activityId}`
+        : '/api/organizer/events';
+      const method = mode === 'edit' ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      onSubmitted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="onboarding-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="onboarding-card draft-modal" onClick={(e) => e.stopPropagation()}>
+        <h2 className="onboarding-title">
+          {mode === 'edit' ? 'Propose an edit' : 'Submit a new event'}
+        </h2>
+        <p className="onboarding-sub" style={{ marginBottom: 14 }}>
+          An admin will review your {mode === 'edit' ? 'changes' : 'submission'} before it goes live.
+        </p>
+
+        {loading ? (
+          <p>Loading…</p>
+        ) : (
+          <form onSubmit={submit} className="add-event-form">
+            <div className="add-event-field add-event-field-full">
+              <label>Title *</label>
+              <input value={values.title} onChange={(e) => set('title', e.target.value)} required />
+            </div>
+            <div className="add-event-field add-event-field-full">
+              <label>Description</label>
+              <textarea rows={3} value={values.description} onChange={(e) => set('description', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Start *</label>
+              <input type="datetime-local" value={values.startAt} onChange={(e) => set('startAt', e.target.value)} required />
+            </div>
+            <div className="add-event-field">
+              <label>End</label>
+              <input type="datetime-local" value={values.endAt} onChange={(e) => set('endAt', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Event URL</label>
+              <input type="url" value={values.url} onChange={(e) => set('url', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Image URL</label>
+              <input type="url" value={values.imageUrl} onChange={(e) => set('imageUrl', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Venue</label>
+              <input value={values.venueName} onChange={(e) => set('venueName', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Address</label>
+              <input value={values.address} onChange={(e) => set('address', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>City</label>
+              <input value={values.city} onChange={(e) => set('city', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>State</label>
+              <input value={values.region} onChange={(e) => set('region', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Cost min ($)</label>
+              <input inputMode="decimal" value={values.costMin} onChange={(e) => set('costMin', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Cost max ($)</label>
+              <input inputMode="decimal" value={values.costMax} onChange={(e) => set('costMax', e.target.value)} />
+            </div>
+            <div className="add-event-field">
+              <label>Availability</label>
+              <select value={values.availability} onChange={(e) => set('availability', e.target.value)}>
+                <option value="onsale">On sale</option>
+                <option value="free">Free</option>
+                <option value="dropin">Drop-in</option>
+                <option value="sold_out">Sold out</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="add-event-field add-event-field-full">
+              <label>Categories (comma-separated)</label>
+              <input value={values.categories} onChange={(e) => set('categories', e.target.value)} placeholder="music, family, outdoor" />
+            </div>
+
+            {error && <p className="rating-error" style={{ gridColumn: '1 / -1' }}>{error}</p>}
+
+            <div className="add-event-actions">
+              <button type="submit" className="btn-primary" disabled={submitting}>
+                {submitting ? 'Submitting…' : mode === 'edit' ? 'Submit edit for review' : 'Submit event for review'}
+              </button>
+              <button type="button" className="onboarding-skip" onClick={onClose}>Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 

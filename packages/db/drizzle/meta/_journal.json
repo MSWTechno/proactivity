@@ -71,6 +71,13 @@
       "when": 1778690501157,
       "tag": "0009_bent_sleepwalker",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778691609786,
+      "tag": "0010_sticky_young_avengers",
+      "breakpoints": true
     }
   ]
 }

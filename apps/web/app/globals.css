@@ -937,6 +937,64 @@ main {
   .organizer-card-stats { grid-template-columns: 1fr 1fr; }
 }
 
+/* -------- organizer events block (per-claim event mgmt) -------- */
+.organizer-events-block {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+}
+.organizer-events-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.organizer-event-list { display: grid; gap: 6px; }
+.organizer-event-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.organizer-event-row:first-child { border-top: none; }
+.organizer-pending-banner {
+  padding: 8px 12px;
+  background: var(--warning-soft);
+  color: var(--warning-fg);
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+/* -------- draft moderation diff -------- */
+.draft-modal { max-width: 760px; max-height: 88vh; overflow-y: auto; }
+.draft-diff {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.draft-diff-row {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.draft-diff-row:last-child { border-bottom: none; }
+.draft-diff-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  margin-bottom: 2px;
+}
+.draft-diff-old { color: var(--fg-muted); font-size: 12px; text-decoration: line-through; }
+.draft-diff-new { color: var(--fg); }
+
 /* -------- admin add-event form -------- */
 .add-event-form {
   display: grid;
