@@ -9,6 +9,7 @@
     "start": "tsx --env-file=../../.env src/cli.ts",
     "sources": "tsx --env-file=../../.env src/sources-cli.ts",
     "ratings": "tsx --env-file=../../.env src/ratings-cli.ts",
+    "contact": "tsx --env-file=../../.env src/contact-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -81,6 +81,31 @@ main {
   margin: 0 0 24px;
 }
 
+.hero-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header-cta {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+  margin-top: 4px;
+}
+.header-cta:hover {
+  background: var(--accent);
+  color: white;
+}
+
 .wordmark {
   display: flex;
   align-items: center;

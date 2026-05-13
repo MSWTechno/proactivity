@@ -17,6 +17,8 @@
     "ratings:list": "pnpm --filter @proactivity/ingestion ratings list",
     "ratings:approve": "pnpm --filter @proactivity/ingestion ratings approve",
     "ratings:reject": "pnpm --filter @proactivity/ingestion ratings reject",
+    "contact:list": "pnpm --filter @proactivity/ingestion contact list",
+    "contact:resolve": "pnpm --filter @proactivity/ingestion contact resolve",
     "sync:env": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-env-to-vercel.ps1",
     "deploy:prod": "vercel deploy --prod --cwd apps/web",
     "db:generate": "pnpm --filter @proactivity/db generate",

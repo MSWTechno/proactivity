@@ -62,6 +62,7 @@ export default function HomePage() {
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
 
   // Fetch site-wide popularity once on mount.
   useEffect(() => {
@@ -207,10 +208,21 @@ export default function HomePage() {
   return (
     <main>
       <header className="hero">
-        <h1 className="wordmark">
-          <span className="dot" aria-hidden="true" />proactivity
-        </h1>
-        <p className="tagline">Things to do near you, this week.</p>
+        <div className="hero-row">
+          <div>
+            <h1 className="wordmark">
+              <span className="dot" aria-hidden="true" />proactivity
+            </h1>
+            <p className="tagline">Things to do near you, this week.</p>
+          </div>
+          <button
+            type="button"
+            className="header-cta"
+            onClick={() => setShowSubmitForm(true)}
+          >
+            Submit your event
+          </button>
+        </div>
         <LocationBar geo={geo} placeName={placeName} onRetry={() => window.location.reload()} />
       </header>
 
@@ -328,6 +340,8 @@ export default function HomePage() {
         />
       )}
 
+      {showSubmitForm && <SubmitEventModal onClose={() => setShowSubmitForm(false)} />}
+
       {items && items.length > 0 && (
         <footer className="footer">
           {items.length} {items.length === 1 ? 'event' : 'events'}
@@ -438,6 +452,92 @@ function LocationBar({
     return <p className="loc">Your browser doesn't support geolocation.</p>;
   }
   return null;
+}
+
+function SubmitEventModal({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [eventUrl, setEventUrl] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('A valid email is required.');
+      return;
+    }
+    if (message.trim().length < 10) {
+      setError('Tell us a bit about the event (10+ characters).');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim() || undefined,
+          email: email.trim(),
+          organization: organization.trim() || undefined,
+          eventUrl: eventUrl.trim() || undefined,
+          message: message.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setSubmitted(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="onboarding-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="submit-title">
+      <div className="onboarding-card" onClick={(e) => e.stopPropagation()}>
+        {submitted ? (
+          <>
+            <h2 className="onboarding-title">Thanks!</h2>
+            <p className="onboarding-sub">
+              We got your message. We'll reach out at <strong>{email}</strong> after reviewing.
+            </p>
+            <button type="button" className="btn-primary" onClick={onClose}>Close</button>
+          </>
+        ) : (
+          <>
+            <h2 id="submit-title" className="onboarding-title">Submit your event</h2>
+            <p className="onboarding-sub">
+              Run a venue, host meetups, or organize community events? Tell us about it and we'll add it to the calendar.
+            </p>
+            <input className="rating-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" maxLength={120} />
+            <input className="rating-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (required)" maxLength={200} />
+            <input className="rating-input" type="text" value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Organization or venue" maxLength={200} />
+            <input className="rating-input" type="url" value={eventUrl} onChange={(e) => setEventUrl(e.target.value)} placeholder="Event URL (optional)" maxLength={500} />
+            <textarea
+              className="rating-review"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={4000}
+              placeholder="Tell us about your event — when, where, what to expect (required)"
+              rows={5}
+            />
+            {error && <p className="rating-error">{error}</p>}
+            <button type="button" className="btn-primary" disabled={submitting} onClick={submit}>
+              {submitting ? 'Sending…' : 'Send'}
+            </button>
+            <button type="button" className="onboarding-skip" onClick={onClose}>Cancel</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {

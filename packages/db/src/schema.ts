@@ -145,6 +145,32 @@ export const ratings = pgTable(
   }),
 );
 
+/**
+ * "Submit your event" form submissions from organizers. Admin reviews
+ * (via CLI for now) and either adds them as a proper source/activity or
+ * rejects with a note.
+ */
+export const contactSubmissions = pgTable(
+  'contact_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name'),
+    email: text('email').notNull(),
+    organization: text('organization'),
+    message: text('message').notNull(),
+    eventUrl: text('event_url'),
+    ipAddress: text('ip_address'),
+    // 'new' | 'replied' | 'added' | 'rejected'
+    status: text('status').notNull().default('new'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => ({
+    statusIdx: index('contact_submissions_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
 export type Source = typeof sources.$inferSelect;
 export type NewSource = typeof sources.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
@@ -152,3 +178,5 @@ export type NewActivity = typeof activities.$inferInsert;
 export type CategoryClick = typeof categoryClicks.$inferSelect;
 export type Rating = typeof ratings.$inferSelect;
 export type NewRating = typeof ratings.$inferInsert;
+export type ContactSubmission = typeof contactSubmissions.$inferSelect;
+export type NewContactSubmission = typeof contactSubmissions.$inferInsert;

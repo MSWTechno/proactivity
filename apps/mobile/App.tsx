@@ -79,6 +79,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
 
   // Fetch site-wide popularity order once on mount.
   useEffect(() => {
@@ -240,11 +241,21 @@ export default function App() {
     <View style={[styles.root, { backgroundColor: t.bg }]}>
       <StatusBar style="auto" />
       <View style={styles.header}>
-        <View style={styles.wordmarkRow}>
-          <View style={[styles.dot, { backgroundColor: t.accent }]} />
-          <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.wordmarkRow}>
+              <View style={[styles.dot, { backgroundColor: t.accent }]} />
+              <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
+            </View>
+            <Text style={[styles.tagline, { color: t.muted }]}>Things to do near you, this week.</Text>
+          </View>
+          <Pressable
+            onPress={() => setShowSubmitForm(true)}
+            style={[styles.headerCta, { backgroundColor: t.accent + '22' }]}
+          >
+            <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Submit event</Text>
+          </Pressable>
         </View>
-        <Text style={[styles.tagline, { color: t.muted }]}>Things to do near you, this week.</Text>
         <GeoBar geo={geo} placeName={placeName} t={t} />
       </View>
 
@@ -341,6 +352,10 @@ export default function App() {
 
       {ratingTarget && (
         <RatingOverlay activity={ratingTarget} t={t} onClose={() => setRatingTarget(null)} />
+      )}
+
+      {showSubmitForm && (
+        <SubmitEventOverlay t={t} onClose={() => setShowSubmitForm(false)} />
       )}
 
       {showOnboarding && onboardingChecked && (
@@ -503,6 +518,99 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
         </Pressable>
       </View>
     </Pressable>
+  );
+}
+
+function SubmitEventOverlay({ t, onClose }: { t: Theme; onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [eventUrl, setEventUrl] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('A valid email is required.');
+      return;
+    }
+    if (message.trim().length < 10) {
+      setError('Tell us a bit about the event (10+ characters).');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim() || undefined,
+          email: email.trim(),
+          organization: organization.trim() || undefined,
+          eventUrl: eventUrl.trim() || undefined,
+          message: message.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setSubmitted(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
+      {submitted ? (
+        <>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>Thanks!</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
+            We got your message. We'll reach out at {email} after reviewing.
+          </Text>
+          <Pressable onPress={onClose} style={[styles.onboardPrimary, { backgroundColor: t.accent }]}>
+            <Text style={styles.onboardPrimaryText}>Close</Text>
+          </Pressable>
+        </>
+      ) : (
+        <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>Submit your event</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
+            Run a venue or host meetups? Tell us and we'll add it to the calendar.
+          </Text>
+          <TextInput value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={t.subtle}
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev, marginBottom: 8 }]} maxLength={120} />
+          <TextInput value={email} onChangeText={setEmail} placeholder="Email (required)" placeholderTextColor={t.subtle}
+            keyboardType="email-address" autoCapitalize="none"
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev, marginBottom: 8 }]} maxLength={200} />
+          <TextInput value={organization} onChangeText={setOrganization} placeholder="Organization or venue" placeholderTextColor={t.subtle}
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev, marginBottom: 8 }]} maxLength={200} />
+          <TextInput value={eventUrl} onChangeText={setEventUrl} placeholder="Event URL (optional)" placeholderTextColor={t.subtle}
+            keyboardType="url" autoCapitalize="none"
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev, marginBottom: 8 }]} maxLength={500} />
+          <TextInput value={message} onChangeText={setMessage} placeholder="Tell us about your event (required)" placeholderTextColor={t.subtle}
+            multiline numberOfLines={5} maxLength={4000}
+            style={[styles.ratingTextarea, { color: t.fg, borderColor: t.border, backgroundColor: t.elev, minHeight: 110 }]} />
+          {error && <Text style={{ color: t.danger, marginVertical: 8 }}>{error}</Text>}
+          <Pressable
+            onPress={submit}
+            disabled={submitting}
+            style={[styles.onboardPrimary, { backgroundColor: t.accent, opacity: submitting ? 0.55 : 1 }]}
+          >
+            <Text style={styles.onboardPrimaryText}>{submitting ? 'Sending…' : 'Send'}</Text>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.onboardSkip}>
+            <Text style={[styles.onboardSkipText, { color: t.muted }]}>Cancel</Text>
+          </Pressable>
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
@@ -758,4 +866,6 @@ const styles = StyleSheet.create({
   },
   ratingToggleRow: { flexDirection: 'row', borderRadius: 8, padding: 4, marginVertical: 8, gap: 4 },
   ratingToggleTab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  headerCta: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginTop: 4 },
 });
