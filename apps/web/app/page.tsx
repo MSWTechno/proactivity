@@ -65,12 +65,16 @@ export default function HomePage() {
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [me, setMe] = useState<{ id: string; email: string; name: string | null } | null>(null);
+  const [noAds, setNoAds] = useState(false);
 
-  // Fetch current user once on mount.
+  // Fetch current user + subscription state once on mount.
   useEffect(() => {
     fetch('/api/auth/me')
-      .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((d: { user: typeof me }) => setMe(d.user))
+      .then((r) => (r.ok ? r.json() : { user: null, subscription: null }))
+      .then((d: { user: typeof me; subscription: { noAds: boolean } | null }) => {
+        setMe(d.user);
+        setNoAds(d.subscription?.noAds === true);
+      })
       .catch(() => { /* not signed in */ });
   }, []);
 
@@ -240,11 +244,19 @@ export default function HomePage() {
               Submit your event
             </button>
             {me ? (
-              <button type="button" className="header-account" onClick={signOut} title={me.email}>
-                {me.name || me.email.split('@')[0]} · sign out
-              </button>
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {noAds && <span className="badge badge-plus">Plus</span>}
+                <button type="button" className="header-account" onClick={signOut} title={me.email}>
+                  {me.name || me.email.split('@')[0]} · sign out
+                </button>
+              </span>
             ) : (
               <a href="/login" className="header-account">Sign in</a>
+            )}
+            {!noAds && (
+              <a href="/pricing" className="header-account" style={{ color: 'var(--accent)' }}>
+                Get Plus →
+              </a>
             )}
           </div>
         </div>

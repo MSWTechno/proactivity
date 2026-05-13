@@ -392,6 +392,57 @@ main {
   background: var(--accent-soft);
   color: var(--accent-fg);
 }
+.badge-plus {
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+
+/* -------- pricing -------- */
+.pricing-main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
+.pricing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 28px 0 24px;
+}
+.pricing-card {
+  position: relative;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+}
+.pricing-card-featured {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(109, 40, 217, 0.12);
+}
+.pricing-badge {
+  position: absolute;
+  top: -10px;
+  right: 20px;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pricing-name { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.pricing-price { margin: 0 0 6px; display: flex; align-items: baseline; gap: 4px; }
+.pricing-amount { font-size: 36px; font-weight: 700; letter-spacing: -0.025em; }
+.pricing-period { color: var(--fg-muted); font-size: 14px; }
+.pricing-tagline { color: var(--fg-muted); font-size: 14px; margin: 0 0 18px; }
+.pricing-features { margin: 0 0 20px; padding: 0 0 0 1.1em; font-size: 14px; line-height: 1.7; }
+.pricing-features li { color: var(--fg); }
+.pricing-cta { width: 100%; padding: 12px; font-size: 14px; }
+.pricing-footnote { text-align: center; color: var(--fg-subtle); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .pricing-grid { grid-template-columns: 1fr; }
+}
 
 .price {
   font-weight: 600;

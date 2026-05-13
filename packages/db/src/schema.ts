@@ -151,6 +151,32 @@ export const ratings = pgTable(
 );
 
 /**
+ * Stripe-backed subscriptions. One row per Stripe subscription. The same
+ * user could in principle have multiple kinds (e.g. consumer_no_ads +
+ * organizer_pro) — we key on stripe_subscription_id, not (user, kind).
+ */
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    // 'consumer_no_ads' | 'organizer_pro' (future)
+    kind: text('kind').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id').unique(),
+    // 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid'
+    status: text('status').notNull(),
+    currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+    cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userKindIdx: index('subscriptions_user_kind_idx').on(t.userId, t.kind, t.status),
+  }),
+);
+
+/**
  * Magic-link authenticated users. Auth tokens are stateless HMAC-signed,
  * so we don't need a tokens/sessions table — just a record of who's signed
  * in.
@@ -203,3 +229,5 @@ export type ContactSubmission = typeof contactSubmissions.$inferSelect;
 export type NewContactSubmission = typeof contactSubmissions.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type NewSubscription = typeof subscriptions.$inferInsert;
