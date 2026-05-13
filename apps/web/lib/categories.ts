@@ -22,6 +22,7 @@ export const CATEGORIES = {
   nightlife: { label: 'Nightlife',   emoji: '🍻' },
   festivals: { label: 'Festivals',   emoji: '🎪' },
   wellness:  { label: 'Wellness',    emoji: '🧘' },
+  camps:     { label: 'Camps',       emoji: '🏕' },
   other:     { label: 'Other',       emoji: '✨' },
 } as const;
 
@@ -43,6 +44,7 @@ const RULES: { key: CategoryKey; pattern: RegExp }[] = [
   { key: 'nightlife', pattern: /\b(bar\b|pub|brewery|tavern|cocktail|happy hour|trivia|nightlife|21\+|after dark)\b/i },
   { key: 'festivals', pattern: /\b(festival|fest\b|carnival|jubilee|celebration|fair\b)\b/i },
   { key: 'wellness',  pattern: /\b(yoga|meditation|mindfulness|wellness|breathwork|tai chi|qigong|sound bath)\b/i },
+  { key: 'camps',     pattern: /\b(camps?|day[- ]?camp|summer[- ]?camp|overnight[- ]?camp|sleep[- ]?away|camping)\b/i },
 ];
 
 export interface CategorizeInput {

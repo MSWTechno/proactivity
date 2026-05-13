@@ -100,6 +100,16 @@ export default function PricingPage() {
       <p className="pricing-footnote">
         Powered by Stripe. Secure. Cancel from your account at any time.
       </p>
+
+      <section style={{ marginTop: 48 }}>
+        <h2 style={{ fontSize: 18, margin: '0 0 6px' }}>Run a venue or organize events?</h2>
+        <p style={{ color: 'var(--fg-muted)', fontSize: 14, margin: '0 0 12px' }}>
+          Featured placement, click analytics, and a verified badge for organizers — $19/month.
+        </p>
+        <Link href="/organizer" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none', padding: '10px 18px' }}>
+          Organizer dashboard →
+        </Link>
+      </section>
     </main>
   );
 }

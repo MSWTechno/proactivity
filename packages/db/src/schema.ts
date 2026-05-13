@@ -231,3 +231,32 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type NewSubscription = typeof subscriptions.$inferInsert;
+
+/**
+ * "I am the organizer at X" — a claim by a user to be the authoritative
+ * holder of a particular organizer_key. Admin approves. Once approved,
+ * the user can subscribe to organizer_pro and their events get featured
+ * placement.
+ */
+export const organizerClaims = pgTable(
+  'organizer_claims',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    organizerKey: text('organizer_key').notNull(),
+    organizerName: text('organizer_name'), // snapshot at claim time
+    note: text('note'),                     // claimant's evidence/justification
+    // 'pending' | 'approved' | 'rejected'
+    status: text('status').notNull().default('pending'),
+    moderatorNote: text('moderator_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => ({
+    userOrgUnique: uniqueIndex('organizer_claims_user_org_unique').on(t.userId, t.organizerKey),
+    statusIdx: index('organizer_claims_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
+export type OrganizerClaim = typeof organizerClaims.$inferSelect;
+export type NewOrganizerClaim = typeof organizerClaims.$inferInsert;

@@ -23,13 +23,37 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }
-  if (body.kind !== 'consumer_no_ads') {
+  if (body.kind !== 'consumer_no_ads' && body.kind !== 'organizer_pro') {
     return NextResponse.json({ error: 'unknown kind' }, { status: 400 });
   }
+  const kind = body.kind;
 
-  const priceId = process.env.STRIPE_PRICE_NO_ADS;
+  const priceId =
+    kind === 'consumer_no_ads'
+      ? process.env.STRIPE_PRICE_NO_ADS
+      : process.env.STRIPE_PRICE_ORGANIZER_PRO;
   if (!priceId) {
-    return NextResponse.json({ error: 'STRIPE_PRICE_NO_ADS not configured' }, { status: 500 });
+    return NextResponse.json(
+      { error: `${kind === 'consumer_no_ads' ? 'STRIPE_PRICE_NO_ADS' : 'STRIPE_PRICE_ORGANIZER_PRO'} not configured` },
+      { status: 500 },
+    );
+  }
+
+  // Organizer subscriptions require an approved claim.
+  if (kind === 'organizer_pro') {
+    const { db, organizerClaims } = await import('@proactivity/db');
+    const { and, eq } = await import('drizzle-orm');
+    const claim = (await db
+      .select()
+      .from(organizerClaims)
+      .where(and(eq(organizerClaims.userId, user.id), eq(organizerClaims.status, 'approved')))
+      .limit(1))[0];
+    if (!claim) {
+      return NextResponse.json(
+        { error: 'You need an approved organizer claim before subscribing.' },
+        { status: 400 },
+      );
+    }
   }
 
   const reqUrl = new URL(request.url);
@@ -37,7 +61,7 @@ export async function POST(request: Request) {
     process.env.PUBLIC_BASE_URL ?? `${reqUrl.protocol}//${reqUrl.host}`;
 
   // If the user already has an active subscription, send them to the portal.
-  const existing = await latestSubscription(user.id, 'consumer_no_ads');
+  const existing = await latestSubscription(user.id, kind);
   if (existing && existing.stripeCustomerId && (existing.status === 'active' || existing.status === 'trialing')) {
     try {
       const portal = await stripe().billingPortal.sessions.create({
@@ -62,9 +86,9 @@ export async function POST(request: Request) {
       customer_email: existing?.stripeCustomerId ? undefined : user.email,
       customer: existing?.stripeCustomerId ?? undefined,
       client_reference_id: user.id,
-      metadata: { userId: user.id, kind: 'consumer_no_ads' },
+      metadata: { userId: user.id, kind },
       subscription_data: {
-        metadata: { userId: user.id, kind: 'consumer_no_ads' },
+        metadata: { userId: user.id, kind },
       },
       allow_promotion_codes: true,
     });

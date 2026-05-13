@@ -28,11 +28,22 @@ interface NewSubmission {
   eventUrl: string | null;
   createdAt: string;
 }
+interface PendingClaim {
+  id: string;
+  organizerKey: string;
+  organizerName: string | null;
+  note: string | null;
+  userEmail: string | null;
+  userName: string | null;
+  eventCount: number;
+  createdAt: string;
+}
 
 export default function ModerationDashboard() {
   const router = useRouter();
   const [ratings, setRatings] = useState<PendingRating[]>([]);
   const [submissions, setSubmissions] = useState<NewSubmission[]>([]);
+  const [claims, setClaims] = useState<PendingClaim[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -43,9 +54,14 @@ export default function ModerationDashboard() {
     try {
       const res = await fetch('/api/admin/queue');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { ratings: PendingRating[]; submissions: NewSubmission[] };
+      const data = (await res.json()) as {
+        ratings: PendingRating[];
+        submissions: NewSubmission[];
+        claims: PendingClaim[];
+      };
       setRatings(data.ratings);
       setSubmissions(data.submissions);
+      setClaims(data.claims ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -67,6 +83,23 @@ export default function ModerationDashboard() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setRatings((rs) => rs.filter((r) => r.id !== id));
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const moderateClaim = async (id: string, action: 'approve' | 'reject') => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/admin/claims/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setClaims((cs) => cs.filter((c) => c.id !== id));
     } catch (e) {
       alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -151,6 +184,49 @@ export default function ModerationDashboard() {
                   className="admin-btn admin-btn-reject"
                   disabled={busyId === r.id}
                   onClick={() => moderateRating(r.id, 'reject')}
+                >Reject</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <h2 className="admin-section-title">
+          Organizer claims <span className="admin-section-count">{loading ? '…' : claims.length}</span>
+        </h2>
+        {!loading && claims.length === 0 && (
+          <p className="admin-empty">Nothing to review.</p>
+        )}
+        <div className="admin-list">
+          {claims.map((c) => (
+            <article key={c.id} className="admin-card">
+              <div className="admin-card-head">
+                <span className="admin-card-from">
+                  {c.userName ?? '(no name)'}{' '}
+                  {c.userEmail && (
+                    <a href={`mailto:${c.userEmail}`} className="admin-card-email">&lt;{c.userEmail}&gt;</a>
+                  )}
+                </span>
+                <span className="admin-card-meta">{new Date(c.createdAt).toLocaleString()}</span>
+              </div>
+              <p className="admin-card-context">
+                Claims to be: <strong>{c.organizerName ?? c.organizerKey}</strong>{' '}
+                <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>({c.eventCount} events)</span>
+              </p>
+              {c.note && <p className="admin-card-review">{c.note}</p>}
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-approve"
+                  disabled={busyId === c.id}
+                  onClick={() => moderateClaim(c.id, 'approve')}
+                >Approve</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-reject"
+                  disabled={busyId === c.id}
+                  onClick={() => moderateClaim(c.id, 'reject')}
                 >Reject</button>
               </div>
             </article>

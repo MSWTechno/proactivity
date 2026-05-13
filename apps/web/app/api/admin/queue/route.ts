@@ -68,6 +68,29 @@ export async function GET() {
     created_at: Date;
   }>;
 
+  const claimRows = (await sql`
+    SELECT
+      c.id, c.organizer_key, c.organizer_name, c.note, c.created_at,
+      u.email AS user_email, u.name AS user_name,
+      COALESCE((
+        SELECT COUNT(*)::int FROM activities a WHERE a.organizer_key = c.organizer_key
+      ), 0) AS event_count
+    FROM organizer_claims c
+    LEFT JOIN users u ON u.id = c.user_id
+    WHERE c.status = 'pending'
+    ORDER BY c.created_at DESC
+    LIMIT 200
+  `) as unknown as Array<{
+    id: string;
+    organizer_key: string;
+    organizer_name: string | null;
+    note: string | null;
+    user_email: string | null;
+    user_name: string | null;
+    event_count: number;
+    created_at: Date;
+  }>;
+
   return NextResponse.json({
     ratings: ratingRows.map((r) => ({
       id: r.id,
@@ -91,6 +114,16 @@ export async function GET() {
       message: s.message,
       eventUrl: s.event_url,
       createdAt: s.created_at,
+    })),
+    claims: claimRows.map((c) => ({
+      id: c.id,
+      organizerKey: c.organizer_key,
+      organizerName: c.organizer_name,
+      note: c.note,
+      userEmail: c.user_email,
+      userName: c.user_name,
+      eventCount: c.event_count,
+      createdAt: c.created_at,
     })),
   });
 }

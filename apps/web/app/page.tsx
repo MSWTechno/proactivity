@@ -50,7 +50,7 @@ export default function HomePage() {
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     radiusKm: 25,
-    daysAhead: 7,
+    dateRange: '7' as '1' | '2' | '7' | '14' | '30' | 'all' | 'past',
     sort: 'time' as 'distance' | 'time' | 'cost',
     freeOnly: false,
     includeUnavailable: false,
@@ -174,8 +174,7 @@ export default function HomePage() {
       p.set('lng', String(geo.lng));
     }
     p.set('radiusKm', String(filters.radiusKm));
-    // daysAhead=0 in state means "all upcoming"; send the sentinel the API expects.
-    p.set('daysAhead', filters.daysAhead === 0 ? 'all' : String(filters.daysAhead));
+    p.set('daysAhead', filters.dateRange);
     p.set('sort', filters.sort);
     if (filters.freeOnly) p.set('freeOnly', '1');
     if (filters.includeUnavailable) p.set('includeUnavailable', '1');
@@ -283,11 +282,11 @@ export default function HomePage() {
             <option value="cost">Cheapest</option>
           </select>
           <select
-            value={filters.daysAhead === 0 ? 'all' : String(filters.daysAhead)}
+            value={filters.dateRange}
             onChange={(e) =>
               setFilters((f) => ({
                 ...f,
-                daysAhead: e.target.value === 'all' ? 0 : Number(e.target.value),
+                dateRange: e.target.value as typeof f.dateRange,
               }))
             }
             aria-label="Date range"
@@ -298,6 +297,7 @@ export default function HomePage() {
             <option value="14">Next 2 weeks</option>
             <option value="30">Next month</option>
             <option value="all">All upcoming</option>
+            <option value="past">Past events</option>
           </select>
           <select
             value={String(filters.radiusKm)}

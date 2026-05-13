@@ -871,6 +871,72 @@ main {
   .admin-table th, .admin-table td { padding: 8px 6px; }
 }
 
+/* -------- organizer dashboard -------- */
+.organizer-main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
+.organizer-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.organizer-list { display: grid; gap: 10px; }
+.organizer-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  background: var(--bg-elev);
+}
+.organizer-card-approved { border-color: var(--success); }
+.organizer-card-rejected { opacity: 0.6; }
+.organizer-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.organizer-card-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+.organizer-card-stats div { display: flex; flex-direction: column; }
+.organizer-card-stats span { font-size: 11px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.organizer-card-stats strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.organizer-card-note { font-style: italic; color: var(--fg-muted); margin: 8px 0 0; font-size: 13px; }
+.organizer-card-mod-note { margin: 4px 0 0; font-size: 12px; color: var(--accent-fg); }
+.organizer-status-badge { font-size: 11px; padding: 3px 9px; }
+.organizer-status-pending { background: var(--warning-soft); color: var(--warning-fg); }
+.organizer-status-approved { background: var(--success-soft); color: var(--success); }
+.organizer-status-rejected { background: var(--danger-soft); color: var(--danger); }
+
+.claim-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.claim-orgs { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; padding: 4px; }
+.claim-org {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.claim-org:hover { border-color: var(--accent); }
+.claim-org-selected { border-color: var(--accent); background: var(--accent-soft); }
+
+@media (max-width: 640px) {
+  .organizer-card-stats { grid-template-columns: 1fr 1fr; }
+}
+
 /* -------- admin add-event form -------- */
 .add-event-form {
   display: grid;

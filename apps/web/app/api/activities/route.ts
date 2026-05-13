@@ -35,6 +35,7 @@ interface ActivityRow {
   rating_count: number;
   organizer_rating_average: number | null;
   organizer_rating_count: number;
+  is_featured: boolean;
 }
 
 export async function GET(request: Request) {
@@ -44,11 +45,14 @@ export async function GET(request: Request) {
   const lat = parseNum(q.get('lat'));
   const lng = parseNum(q.get('lng'));
   const radiusKm = parseNum(q.get('radiusKm')) ?? 25;
-  // `daysAhead=all` (or any non-numeric) disables the upper bound entirely.
+  // `daysAhead=all` disables the upper bound; `daysAhead=past` flips the
+  // query to events whose start_at is in the past (last 90 days), sorted
+  // newest-first. Anything else is a positive day window.
   const daysAheadRaw = q.get('daysAhead');
+  const isPast = daysAheadRaw === 'past';
   const daysAheadNum = parseNum(daysAheadRaw);
   const daysAhead =
-    daysAheadRaw === 'all' || daysAheadNum == null
+    isPast || daysAheadRaw === 'all' || daysAheadNum == null
       ? null
       : clampInt(daysAheadNum, 1, 365);
   const maxCostCents = parseNum(q.get('maxCostCents'));
@@ -93,12 +97,16 @@ export async function GET(request: Request) {
       ? sql`AND (a.cost_min_cents IS NULL OR a.cost_min_cents <= ${maxCostCents})`
       : sql``;
 
-  const orderClause =
-    effectiveSort === 'distance'
-      ? sql`ORDER BY distance_m ASC NULLS LAST`
+  // Featured (paying organizer) events bubble to the top regardless of sort.
+  // Past mode forces newest-first chronological order — the other sort modes
+  // don't really make sense looking backwards.
+  const orderClause = isPast
+    ? sql`ORDER BY is_featured DESC, a.start_at DESC`
+    : effectiveSort === 'distance'
+      ? sql`ORDER BY is_featured DESC, distance_m ASC NULLS LAST`
       : effectiveSort === 'cost'
-        ? sql`ORDER BY a.cost_min_cents ASC NULLS LAST`
-        : sql`ORDER BY a.start_at ASC`;
+        ? sql`ORDER BY is_featured DESC, a.cost_min_cents ASC NULLS LAST`
+        : sql`ORDER BY is_featured DESC, a.start_at ASC`;
 
   const rows = (await sql`
     SELECT
@@ -115,7 +123,8 @@ export async function GET(request: Request) {
       r.avg_score AS rating_average,
       COALESCE(r.cnt, 0)::int AS rating_count,
       org_r.avg_score AS organizer_rating_average,
-      COALESCE(org_r.cnt, 0)::int AS organizer_rating_count
+      COALESCE(org_r.cnt, 0)::int AS organizer_rating_count,
+      COALESCE(feat.is_featured, false) AS is_featured
     FROM activities a
     LEFT JOIN LATERAL (
       SELECT AVG(score)::float8 AS avg_score, COUNT(*)::int AS cnt
@@ -134,8 +143,23 @@ export async function GET(request: Request) {
         AND a.organizer_key IS NOT NULL
         AND status = 'approved'
     ) org_r ON true
+    -- Featured = an approved organizer_claim user has an active
+    -- organizer_pro subscription for this organizer_key.
+    LEFT JOIN LATERAL (
+      SELECT true AS is_featured
+      FROM organizer_claims c
+      JOIN subscriptions s ON s.user_id = c.user_id
+      WHERE c.organizer_key = a.organizer_key
+        AND a.organizer_key IS NOT NULL
+        AND c.status = 'approved'
+        AND s.kind = 'organizer_pro'
+        AND s.status IN ('active', 'trialing')
+      LIMIT 1
+    ) feat ON true
     WHERE a.url IS NOT NULL AND a.url <> ''
-      AND a.start_at >= now()
+      ${isPast
+        ? sql`AND a.start_at < now() AND a.start_at >= now() - interval '90 days'`
+        : sql`AND a.start_at >= now()`}
       ${daysAhead != null
         ? sql`AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')`
         : sql``}
@@ -196,6 +220,7 @@ export async function GET(request: Request) {
             ratingCount: r.organizer_rating_count,
           }
         : null,
+      isFeatured: r.is_featured,
     };
   });
 

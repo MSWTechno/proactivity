@@ -167,14 +167,15 @@ export default function EventsTable() {
             <th>Organizer</th>
             <th>Location</th>
             <th className="admin-th-right"><button type="button" onClick={() => toggleSort('clicks')}>Clicks{sortIndicator('clicks')}</button></th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {loading && items.length === 0 && (
-            <tr><td colSpan={5} className="admin-empty-row">Loading…</td></tr>
+            <tr><td colSpan={6} className="admin-empty-row">Loading…</td></tr>
           )}
           {!loading && items.length === 0 && (
-            <tr><td colSpan={5} className="admin-empty-row">No matching events.</td></tr>
+            <tr><td colSpan={6} className="admin-empty-row">No matching events.</td></tr>
           )}
           {items.map((e) => (
             <tr key={e.id}>
@@ -201,6 +202,9 @@ export default function EventsTable() {
               </td>
               <td>{[e.city, e.region].filter(Boolean).join(', ') || <span style={{ color: 'var(--fg-subtle)' }}>—</span>}</td>
               <td className="admin-td-right admin-clicks">{e.clickCount}</td>
+              <td className="admin-td-right">
+                <Link href={`/admin/events/${e.id}/edit`} className="admin-tab" style={{ fontSize: 12 }}>Edit</Link>
+              </td>
             </tr>
           ))}
         </tbody>
