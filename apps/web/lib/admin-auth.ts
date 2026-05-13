@@ -16,16 +16,16 @@ function secret(): string | null {
 }
 
 /**
- * Mint a signed session token. Payload is just the email — anyone with a
- * valid token is "the admin". Email is bound to the signature so an
- * attacker can't change it without the secret.
+ * Mint a signed session token of the form `<payload>.<signature>`. The
+ * payload is base64url-encoded JSON so the email's "." characters can't
+ * collide with the separator.
  */
 export function mintAdminToken(email: string): string | null {
   const sec = secret();
   if (!sec) return null;
-  const expSec = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_S;
-  const payload = `${encodeURIComponent(email)}.${expSec}`;
-  const sig = createHmac('sha256', sec).update(payload).digest('hex');
+  const exp = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_S;
+  const payload = Buffer.from(JSON.stringify({ email, exp })).toString('base64url');
+  const sig = createHmac('sha256', sec).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
@@ -33,20 +33,32 @@ function verifyAdminToken(token: string | undefined): { email: string } | null {
   if (!token) return null;
   const sec = secret();
   if (!sec) return null;
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  const [emailEnc, expStr, sig] = parts as [string, string, string];
-  const expSec = Number(expStr);
-  if (!Number.isFinite(expSec) || expSec < Math.floor(Date.now() / 1000)) return null;
-  const payload = `${emailEnc}.${expStr}`;
-  const expectedSig = createHmac('sha256', sec).update(payload).digest('hex');
+  const lastDot = token.lastIndexOf('.');
+  if (lastDot <= 0) return null;
+  const payload = token.slice(0, lastDot);
+  const sig = token.slice(lastDot + 1);
+
+  const expectedSig = createHmac('sha256', sec).update(payload).digest('base64url');
   if (expectedSig.length !== sig.length) return null;
   try {
-    if (!timingSafeEqual(Buffer.from(expectedSig, 'hex'), Buffer.from(sig, 'hex'))) return null;
+    if (!timingSafeEqual(Buffer.from(expectedSig, 'base64url'), Buffer.from(sig, 'base64url'))) {
+      return null;
+    }
   } catch {
     return null;
   }
-  return { email: decodeURIComponent(emailEnc) };
+
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
+      email?: string;
+      exp?: number;
+    };
+    if (!data.email || !Number.isFinite(data.exp)) return null;
+    if (data.exp! < Math.floor(Date.now() / 1000)) return null;
+    return { email: data.email };
+  } catch {
+    return null;
+  }
 }
 
 /**
