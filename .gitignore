@@ -13,3 +13,5 @@ coverage/
 *.tsbuildinfo
 .vercel/
 .claude/settings.local.json
+.vercel
+.env*.local
