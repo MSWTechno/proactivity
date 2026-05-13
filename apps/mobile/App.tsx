@@ -345,8 +345,13 @@ export default function App() {
           )}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
           style={styles.list}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          ListFooterComponent={() => (
+            <Text style={[styles.disclaimer, { color: t.subtle }]}>
+              Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
+            </Text>
+          )}
         />
       )}
 
@@ -868,4 +873,5 @@ const styles = StyleSheet.create({
   ratingToggleTab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   headerCta: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginTop: 4 },
+  disclaimer: { fontSize: 10, lineHeight: 14, marginTop: 24, paddingHorizontal: 8, textAlign: 'center' },
 });

@@ -709,6 +709,15 @@ main {
   font-size: 13px;
 }
 
+.disclaimer {
+  margin: 24px auto 0;
+  max-width: 640px;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--fg-subtle);
+}
+
 /* -------- mobile -------- */
 @media (max-width: 640px) {
   main { padding: 20px 14px 64px; }
