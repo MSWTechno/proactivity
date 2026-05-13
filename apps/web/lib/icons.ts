@@ -82,23 +82,34 @@ export function colorForTitle(title: string): string {
   return PLACEHOLDER_COLORS[hashString(title) % PLACEHOLDER_COLORS.length]!;
 }
 
-export function emojiForTitle(title: string): string | null {
-  if (!title) return null;
+function emojiFromText(text: string | null | undefined): string | null {
+  if (!text) return null;
   for (const rule of TITLE_EMOJI_RULES) {
-    if (rule.pattern.test(title)) return rule.emoji;
+    if (rule.pattern.test(text)) return rule.emoji;
   }
   return null;
 }
 
+/** Back-compat export — same behavior as emojiFromText. */
+export function emojiForTitle(title: string): string | null {
+  return emojiFromText(title);
+}
+
 export function placeholderFor(input: {
   title: string;
+  venueName?: string | null;
+  organizerName?: string | null;
   canonicalCategories?: CategoryKey[];
 }): { emoji: string; color: string } {
-  const titleEmoji = emojiForTitle(input.title);
+  // Try in order of specificity: title keywords first, then venue, then
+  // organizer, then category fallback.
+  const titleEmoji = emojiFromText(input.title);
+  const venueEmoji = emojiFromText(input.venueName);
+  const organizerEmoji = emojiFromText(input.organizerName);
   const firstCat = input.canonicalCategories?.find((k) => k !== 'other') as CategoryKey | undefined;
   const categoryEmoji = firstCat ? CATEGORIES[firstCat].emoji : null;
   return {
-    emoji: titleEmoji ?? categoryEmoji ?? '✨',
+    emoji: titleEmoji ?? venueEmoji ?? organizerEmoji ?? categoryEmoji ?? '✨',
     color: colorForTitle(input.title),
   };
 }

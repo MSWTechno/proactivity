@@ -473,7 +473,12 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
         />
       ) : (
         (() => {
-          const ph = placeholderFor({ title: activity.title, canonicalCategories: activity.canonicalCategories });
+          const ph = placeholderFor({
+            title: activity.title,
+            venueName: activity.venueName,
+            organizerName: activity.organizer?.name,
+            canonicalCategories: activity.canonicalCategories,
+          });
           return (
             <View style={[styles.cardImg, styles.cardImgPlaceholder, { backgroundColor: ph.color }]}>
               <Text style={styles.cardImgEmoji}>{ph.emoji}</Text>

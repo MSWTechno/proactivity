@@ -583,7 +583,12 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
   const distance = a.distanceMeters != null ? `${(a.distanceMeters / 1000).toFixed(1)} km` : null;
   const price = formatPrice(a.costMinCents, a.costMaxCents, a.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(a.availability);
-  const placeholder = placeholderFor({ title: a.title, canonicalCategories: a.canonicalCategories });
+  const placeholder = placeholderFor({
+    title: a.title,
+    venueName: a.venueName,
+    organizerName: a.organizer?.name,
+    canonicalCategories: a.canonicalCategories,
+  });
   const showImage = a.imageUrl && !imgFailed;
 
   const handleClick = () => {

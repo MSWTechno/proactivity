@@ -83,29 +83,41 @@ export function colorForTitle(title: string): string {
   return PLACEHOLDER_COLORS[hashString(title) % PLACEHOLDER_COLORS.length]!;
 }
 
-export function emojiForTitle(title: string): string | null {
-  if (!title) return null;
+function emojiFromText(text: string | null | undefined): string | null {
+  if (!text) return null;
   for (const rule of TITLE_EMOJI_RULES) {
-    if (rule.pattern.test(title)) return rule.emoji;
+    if (rule.pattern.test(text)) return rule.emoji;
   }
   return null;
 }
 
+export function emojiForTitle(title: string): string | null {
+  return emojiFromText(title);
+}
+
 /**
- * Returns a deterministic placeholder for an event:
- *   - emoji: title-keyword match → category emoji → default star
- *   - color: hashed from title for visual variety
+ * Deterministic placeholder for an event without an image. Tries:
+ *   1. Title keywords ("Karaoke" → 🎤)
+ *   2. Venue keywords  ("Brewery" → 🍻)
+ *   3. Organizer keywords
+ *   4. First non-"other" category emoji
+ *   5. Default star ✨
+ * Color is hashed from the title so the same event always renders the
+ * same color across sessions.
  */
 export function placeholderFor(input: {
   title: string;
+  venueName?: string | null;
+  organizerName?: string | null;
   canonicalCategories?: CategoryKey[];
 }): { emoji: string; color: string } {
-  const titleEmoji = emojiForTitle(input.title);
-  const categoryEmoji = input.canonicalCategories?.find((k) => k !== 'other')
-    ? CATEGORIES[input.canonicalCategories.find((k) => k !== 'other') as CategoryKey].emoji
-    : null;
+  const titleEmoji = emojiFromText(input.title);
+  const venueEmoji = emojiFromText(input.venueName);
+  const organizerEmoji = emojiFromText(input.organizerName);
+  const firstCat = input.canonicalCategories?.find((k) => k !== 'other') as CategoryKey | undefined;
+  const categoryEmoji = firstCat ? CATEGORIES[firstCat].emoji : null;
   return {
-    emoji: titleEmoji ?? categoryEmoji ?? '✨',
+    emoji: titleEmoji ?? venueEmoji ?? organizerEmoji ?? categoryEmoji ?? '✨',
     color: colorForTitle(input.title),
   };
 }
