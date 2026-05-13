@@ -119,6 +119,11 @@ export default function EventsTable() {
           <span className="admin-stat-label">Total clicks</span>
           <span className="admin-stat-value">{totalClicks}</span>
         </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          <Link href="/admin/events/new" className="btn-primary" style={{ marginTop: 0, padding: '10px 18px', textDecoration: 'none' }}>
+            + Add event
+          </Link>
+        </div>
       </div>
 
       <div className="admin-filters">
