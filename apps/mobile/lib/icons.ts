@@ -31,7 +31,7 @@ const TITLE_EMOJI_RULES: { pattern: RegExp; emoji: string }[] = [
   { pattern: /\bcard\s*game|board\s*game\b/i, emoji: '🎲' },
   { pattern: /\bhik(e|ing)\b/i,               emoji: '🥾' },
   { pattern: /\brun(ning)?\b/i,               emoji: '🏃' },
-  { pattern: /\bcycl(e|ing)|bike\b/i,         emoji: '🚴' },
+  { pattern: /\b(?:bicycl(?:e|ing)?|cycl(?:e|ing)|bike|biking)\b/i, emoji: '🚴' },
   { pattern: /\byoga\b/i,                     emoji: '🧘' },
   { pattern: /\bdance|dancing\b/i,            emoji: '💃' },
   { pattern: /\bbrew(ery|ing)\b/i,            emoji: '🍺' },

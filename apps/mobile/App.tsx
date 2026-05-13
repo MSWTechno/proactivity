@@ -187,7 +187,8 @@ export default function App() {
     } else {
       p.set('sort', 'time');
     }
-    p.set('daysAhead', String(daysAhead));
+    // daysAhead=0 means "all upcoming"; send the sentinel the API expects.
+    p.set('daysAhead', daysAhead === 0 ? 'all' : String(daysAhead));
     if (debouncedSearch) p.set('search', debouncedSearch);
     if (activeCategories.size > 0) p.set('category', [...activeCategories].join(','));
     return p.toString();
@@ -271,7 +272,7 @@ export default function App() {
       />
 
       <View style={styles.rangeRow}>
-        {[1, 7, 14, 30].map((d) => (
+        {[1, 7, 14, 30, 0].map((d) => (
           <Pressable
             key={d}
             onPress={() => setDaysAhead(d)}
@@ -286,7 +287,7 @@ export default function App() {
               { color: t.fg },
               daysAhead === d && { color: '#fff' },
             ]}>
-              {d === 1 ? 'Today' : d === 7 ? '7 days' : d === 14 ? '2 weeks' : '1 month'}
+              {d === 0 ? 'All' : d === 1 ? 'Today' : d === 7 ? '7 days' : d === 14 ? '2 weeks' : '1 month'}
             </Text>
           </Pressable>
         ))}

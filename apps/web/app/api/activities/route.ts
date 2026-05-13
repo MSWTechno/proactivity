@@ -44,7 +44,13 @@ export async function GET(request: Request) {
   const lat = parseNum(q.get('lat'));
   const lng = parseNum(q.get('lng'));
   const radiusKm = parseNum(q.get('radiusKm')) ?? 25;
-  const daysAhead = clampInt(parseNum(q.get('daysAhead')) ?? 7, 1, 90);
+  // `daysAhead=all` (or any non-numeric) disables the upper bound entirely.
+  const daysAheadRaw = q.get('daysAhead');
+  const daysAheadNum = parseNum(daysAheadRaw);
+  const daysAhead =
+    daysAheadRaw === 'all' || daysAheadNum == null
+      ? null
+      : clampInt(daysAheadNum, 1, 365);
   const maxCostCents = parseNum(q.get('maxCostCents'));
   const freeOnly = q.get('freeOnly') === '1';
   const includeUnavailable = q.get('includeUnavailable') === '1';
@@ -130,7 +136,9 @@ export async function GET(request: Request) {
     ) org_r ON true
     WHERE a.url IS NOT NULL AND a.url <> ''
       AND a.start_at >= now()
-      AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')
+      ${daysAhead != null
+        ? sql`AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')`
+        : sql``}
       ${availabilityFilter}
       ${radiusFilter}
       ${costFilter}

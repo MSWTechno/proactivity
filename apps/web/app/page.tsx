@@ -170,7 +170,8 @@ export default function HomePage() {
       p.set('lng', String(geo.lng));
     }
     p.set('radiusKm', String(filters.radiusKm));
-    p.set('daysAhead', String(filters.daysAhead));
+    // daysAhead=0 in state means "all upcoming"; send the sentinel the API expects.
+    p.set('daysAhead', filters.daysAhead === 0 ? 'all' : String(filters.daysAhead));
     p.set('sort', filters.sort);
     if (filters.freeOnly) p.set('freeOnly', '1');
     if (filters.includeUnavailable) p.set('includeUnavailable', '1');
@@ -270,8 +271,13 @@ export default function HomePage() {
             <option value="cost">Cheapest</option>
           </select>
           <select
-            value={String(filters.daysAhead)}
-            onChange={(e) => setFilters((f) => ({ ...f, daysAhead: Number(e.target.value) }))}
+            value={filters.daysAhead === 0 ? 'all' : String(filters.daysAhead)}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                daysAhead: e.target.value === 'all' ? 0 : Number(e.target.value),
+              }))
+            }
             aria-label="Date range"
           >
             <option value="1">Today</option>
@@ -279,6 +285,7 @@ export default function HomePage() {
             <option value="7">Next 7 days</option>
             <option value="14">Next 2 weeks</option>
             <option value="30">Next month</option>
+            <option value="all">All upcoming</option>
           </select>
           <select
             value={String(filters.radiusKm)}
