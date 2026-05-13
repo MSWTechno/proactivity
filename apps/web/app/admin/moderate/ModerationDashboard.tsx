@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Logo } from '../../Logo';
 
 interface PendingRating {
@@ -102,7 +103,11 @@ export default function ModerationDashboard() {
         <h1 className="wordmark">
           <Logo size={26} className="wordmark-logo" />proactivity <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontSize: 18 }}>admin</span>
         </h1>
-        <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Link href="/admin/moderate" className="admin-tab admin-tab-active">Moderation</Link>
+          <Link href="/admin/events" className="admin-tab">Events</Link>
+          <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
+        </div>
       </header>
 
       {error && <div className="error">Failed to load: {error}</div>}
