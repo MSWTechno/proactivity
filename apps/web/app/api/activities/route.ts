@@ -24,11 +24,16 @@ interface ActivityRow {
   url: string | null;
   image_url: string | null;
   categories: string[] | null;
+  organizer_name: string | null;
+  organizer_url: string | null;
+  organizer_key: string | null;
   lng: number | null;
   lat: number | null;
   distance_m: number | null;
   rating_average: number | null;
   rating_count: number;
+  organizer_rating_average: number | null;
+  organizer_rating_count: number;
 }
 
 export async function GET(request: Request) {
@@ -95,11 +100,14 @@ export async function GET(request: Request) {
       a.age_min, a.age_max,
       a.cost_min_cents, a.cost_max_cents, a.currency, a.availability,
       a.url, a.image_url, a.categories,
+      a.organizer_name, a.organizer_url, a.organizer_key,
       ST_X(a.location) AS lng,
       ST_Y(a.location) AS lat,
       ${distanceExpr} AS distance_m,
       r.avg_score AS rating_average,
-      COALESCE(r.cnt, 0)::int AS rating_count
+      COALESCE(r.cnt, 0)::int AS rating_count,
+      org_r.avg_score AS organizer_rating_average,
+      COALESCE(org_r.cnt, 0)::int AS organizer_rating_count
     FROM activities a
     LEFT JOIN LATERAL (
       SELECT AVG(score)::float8 AS avg_score, COUNT(*)::int AS cnt
@@ -109,6 +117,14 @@ export async function GET(request: Request) {
         AND target_key = SPLIT_PART(a.source_event_id, '::', 1)
         AND status = 'approved'
     ) r ON true
+    LEFT JOIN LATERAL (
+      SELECT AVG(score)::float8 AS avg_score, COUNT(*)::int AS cnt
+      FROM ratings
+      WHERE target_kind = 'organizer'
+        AND target_key = a.organizer_key
+        AND a.organizer_key IS NOT NULL
+        AND status = 'approved'
+    ) org_r ON true
     WHERE a.start_at >= now()
       AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')
       ${availabilityFilter}
@@ -158,6 +174,15 @@ export async function GET(request: Request) {
       distanceMeters: r.distance_m,
       ratingAverage: r.rating_average,
       ratingCount: r.rating_count,
+      organizer: r.organizer_key
+        ? {
+            name: r.organizer_name,
+            url: r.organizer_url,
+            key: r.organizer_key,
+            ratingAverage: r.organizer_rating_average,
+            ratingCount: r.organizer_rating_count,
+          }
+        : null,
     };
   });
 

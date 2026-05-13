@@ -45,6 +45,13 @@ interface Activity {
   distanceMeters: number | null;
   ratingAverage: number | null;
   ratingCount: number;
+  organizer: {
+    name: string | null;
+    url: string | null;
+    key: string;
+    ratingAverage: number | null;
+    ratingCount: number;
+  } | null;
 }
 
 type GeoState =
@@ -476,6 +483,11 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
                 ★ {activity.ratingAverage.toFixed(1)} <Text style={{ color: t.subtle }}>({activity.ratingCount})</Text>
               </Text>
             )}
+            {activity.organizer && activity.organizer.ratingCount > 0 && activity.organizer.ratingAverage != null && (
+              <Text style={{ color: t.accent, fontSize: 11 }}>
+                org ★ {activity.organizer.ratingAverage.toFixed(1)} <Text style={{ color: t.subtle }}>({activity.organizer.ratingCount})</Text>
+              </Text>
+            )}
           </View>
           {price && <Text style={[styles.price, { color: t.fg }]}>{price}</Text>}
         </View>
@@ -495,6 +507,7 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
 }
 
 function RatingOverlay({ activity, t, onClose }: { activity: Activity; t: Theme; onClose: () => void }) {
+  const [target, setTarget] = useState<'event' | 'organizer'>('event');
   const [score, setScore] = useState(0);
   const [review, setReview] = useState('');
   const [name, setName] = useState('');
@@ -516,6 +529,7 @@ function RatingOverlay({ activity, t, onClose }: { activity: Activity; t: Theme;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           activityId: activity.id,
+          target,
           score,
           review: review.trim() || undefined,
           submitterName: name.trim() || undefined,
@@ -548,10 +562,34 @@ function RatingOverlay({ activity, t, onClose }: { activity: Activity; t: Theme;
         </>
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.onboardTitle, { color: t.fg }]}>Rate this event</Text>
-          <Text style={[styles.onboardSubtitle, { color: t.muted }]} numberOfLines={2}>
-            {activity.title}
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>
+            {target === 'event' ? 'Rate this event' : `Rate ${activity.organizer?.name ?? 'this organizer'}`}
           </Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]} numberOfLines={2}>
+            {target === 'event'
+              ? activity.title
+              : `Your rating applies to all events from ${activity.organizer?.name ?? 'this organizer'}.`}
+          </Text>
+          {activity.organizer?.name && (
+            <View style={[styles.ratingToggleRow, { backgroundColor: t.sunken }]}>
+              <Pressable
+                onPress={() => setTarget('event')}
+                style={[styles.ratingToggleTab, target === 'event' && { backgroundColor: t.elev }]}
+              >
+                <Text style={{ color: target === 'event' ? t.fg : t.muted, fontSize: 13, fontWeight: target === 'event' ? '500' : '400' }}>
+                  This event
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setTarget('organizer')}
+                style={[styles.ratingToggleTab, target === 'organizer' && { backgroundColor: t.elev }]}
+              >
+                <Text style={{ color: target === 'organizer' ? t.fg : t.muted, fontSize: 13, fontWeight: target === 'organizer' ? '500' : '400' }}>
+                  Organizer
+                </Text>
+              </Pressable>
+            </View>
+          )}
           <View style={styles.starRow}>
             {[1, 2, 3, 4, 5].map((n) => (
               <Pressable key={n} onPress={() => setScore(n)} hitSlop={6}>
@@ -718,4 +756,6 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+  ratingToggleRow: { flexDirection: 'row', borderRadius: 8, padding: 4, marginVertical: 8, gap: 4 },
+  ratingToggleTab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
 });

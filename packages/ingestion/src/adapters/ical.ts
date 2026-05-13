@@ -150,9 +150,14 @@ function mapInstance(
   // is idempotent at the instance level.
   const sourceEventId = isRecurring ? `${ev.uid}::${start.toISOString()}` : ev.uid;
 
-  // node-ical types are incomplete: CATEGORIES is parsed at runtime but absent from VEvent.
-  const evExtra = ev as ical.VEvent & { categories?: unknown };
+  // node-ical types are incomplete: CATEGORIES and ORGANIZER are parsed at
+  // runtime but absent from VEvent.
+  const evExtra = ev as ical.VEvent & {
+    categories?: unknown;
+    organizer?: string | { val?: string; params?: { CN?: string } };
+  };
   const categories = parseCategories(evExtra.categories);
+  const { organizerName, organizerUrl } = parseOrganizer(evExtra.organizer);
 
   return {
     sourceEventId,
@@ -173,6 +178,9 @@ function mapInstance(
     costMaxCents: null,
     currency: null,
     availability: defaultAvailability,
+    organizerName,
+    organizerUrl,
+    organizerKey: null, // runner derives
     url: ev.url ?? null,
     imageUrl: null,
     categories,
@@ -187,6 +195,24 @@ function mapInstance(
       categories: evExtra.categories,
     },
   };
+}
+
+function parseOrganizer(
+  value: unknown,
+): { organizerName: string | null; organizerUrl: string | null } {
+  if (!value) return { organizerName: null, organizerUrl: null };
+  if (typeof value === 'string') {
+    // Plain string — often a mailto: or just an email
+    return { organizerName: null, organizerUrl: value };
+  }
+  if (typeof value === 'object') {
+    const v = value as { val?: string; params?: { CN?: string } };
+    return {
+      organizerName: v.params?.CN ?? null,
+      organizerUrl: v.val ?? null,
+    };
+  }
+  return { organizerName: null, organizerUrl: null };
 }
 
 function parseCategories(value: unknown): string[] | null {

@@ -30,6 +30,14 @@ export interface NormalizedActivity {
    *  - 'unknown'   : adapter couldn't determine
    */
   availability: 'onsale' | 'free' | 'dropin' | 'sold_out' | 'cancelled' | 'unknown';
+  /**
+   * Organizer / host identity. Adapters extract these when available;
+   * the runner derives organizerKey from URL slug (preferred) or name
+   * slug if not explicitly set.
+   */
+  organizerName?: string | null;
+  organizerUrl?: string | null;
+  organizerKey?: string | null;
   url?: string | null;
   imageUrl?: string | null;
   categories?: string[] | null;

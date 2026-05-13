@@ -534,6 +534,35 @@ main {
   margin: 0 0 10px;
 }
 
+.rating-organizer { color: var(--accent-fg); }
+
+.rating-target-toggle {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  background: var(--bg-sunken);
+  border-radius: 8px;
+  padding: 4px;
+}
+.rating-target-tab {
+  flex: 1;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.rating-target-tab:hover { color: var(--fg); }
+.rating-target-tab-on {
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-weight: 500;
+  box-shadow: var(--shadow);
+}
+
 .footer {
   margin-top: 32px;
   padding-top: 16px;

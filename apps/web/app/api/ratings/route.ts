@@ -15,6 +15,7 @@ export const runtime = 'nodejs';
 export async function POST(request: Request) {
   let body: {
     activityId?: string;
+    target?: 'event' | 'organizer';
     score?: number;
     review?: string;
     submitterName?: string;
@@ -37,20 +38,32 @@ export async function POST(request: Request) {
   if (review.length > 2000) {
     return NextResponse.json({ error: 'review too long' }, { status: 400 });
   }
+  const target = body.target === 'organizer' ? 'organizer' : 'event';
 
-  // Resolve the activity to its (source_id, recurring base key).
   const lookup = (await sql`
-    SELECT source_id, source_event_id FROM activities WHERE id = ${body.activityId} LIMIT 1
-  `) as unknown as { source_id: string; source_event_id: string }[];
+    SELECT source_id, source_event_id, organizer_key
+    FROM activities WHERE id = ${body.activityId} LIMIT 1
+  `) as unknown as { source_id: string; source_event_id: string; organizer_key: string | null }[];
   if (lookup.length === 0) {
     return NextResponse.json({ error: 'activity not found' }, { status: 404 });
   }
-  const { source_id, source_event_id } = lookup[0]!;
-  // Strip any "::<occurrence>" suffix so all instances of a recurring
-  // series share ratings.
-  const targetKey = source_event_id.split('::')[0]!;
+  const { source_id, source_event_id, organizer_key } = lookup[0]!;
 
-  // Capture submitter IP for rate-limiting / abuse review.
+  let storedSourceId: string | null;
+  let targetKey: string;
+  if (target === 'organizer') {
+    if (!organizer_key) {
+      return NextResponse.json({ error: 'this event has no organizer to rate' }, { status: 400 });
+    }
+    // Organizer ratings are global — source_id stays null.
+    storedSourceId = null;
+    targetKey = organizer_key;
+  } else {
+    storedSourceId = source_id;
+    // Recurring-base key: strip any "::<occurrence>" suffix.
+    targetKey = source_event_id.split('::')[0]!;
+  }
+
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
@@ -62,7 +75,7 @@ export async function POST(request: Request) {
       submitter_name, submitter_email, submitter_ip,
       score, review, status
     ) VALUES (
-      ${source_id}, 'event', ${targetKey},
+      ${storedSourceId}, ${target}, ${targetKey},
       ${body.submitterName?.trim().slice(0, 80) ?? null},
       ${body.submitterEmail?.trim().slice(0, 200) ?? null},
       ${ip},
@@ -70,5 +83,5 @@ export async function POST(request: Request) {
     )
   `;
 
-  return NextResponse.json({ ok: true, status: 'pending' });
+  return NextResponse.json({ ok: true, status: 'pending', target });
 }

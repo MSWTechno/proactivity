@@ -25,6 +25,13 @@ interface Activity {
   distanceMeters: number | null;
   ratingAverage: number | null;
   ratingCount: number;
+  organizer: {
+    name: string | null;
+    url: string | null;
+    key: string;
+    ratingAverage: number | null;
+    ratingCount: number;
+  } | null;
 }
 
 type GeoState =
@@ -499,6 +506,11 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
             ★ {a.ratingAverage.toFixed(1)} <span className="rating-count">({a.ratingCount})</span>
           </span>
         )}
+        {a.organizer && a.organizer.ratingCount > 0 && a.organizer.ratingAverage != null && (
+          <span className="rating-summary rating-organizer" title={`organizer · ${a.organizer.ratingCount} rating${a.organizer.ratingCount === 1 ? '' : 's'}`}>
+            org ★ {a.organizer.ratingAverage.toFixed(1)} <span className="rating-count">({a.organizer.ratingCount})</span>
+          </span>
+        )}
         {price && <span className="price">{price}</span>}
         <button
           type="button"
@@ -517,6 +529,7 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
 }
 
 function RatingModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
+  const [target, setTarget] = useState<'event' | 'organizer'>('event');
   const [score, setScore] = useState(0);
   const [review, setReview] = useState('');
   const [name, setName] = useState('');
@@ -538,6 +551,7 @@ function RatingModal({ activity, onClose }: { activity: Activity; onClose: () =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           activityId: activity.id,
+          target,
           score,
           review: review.trim() || undefined,
           submitterName: name.trim() || undefined,
@@ -569,10 +583,36 @@ function RatingModal({ activity, onClose }: { activity: Activity; onClose: () =>
           </>
         ) : (
           <>
-            <h2 id="rating-title" className="onboarding-title">Rate this event</h2>
+            <h2 id="rating-title" className="onboarding-title">
+              {target === 'event' ? 'Rate this event' : `Rate ${activity.organizer?.name ?? 'this organizer'}`}
+            </h2>
             <p className="onboarding-sub" style={{ marginBottom: 14 }}>
-              {activity.title}
+              {target === 'event'
+                ? activity.title
+                : `Your rating applies to all events from ${activity.organizer?.name ?? 'this organizer'}.`}
             </p>
+            {activity.organizer?.name && (
+              <div className="rating-target-toggle" role="tablist" aria-label="Rate event or organizer">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={target === 'event'}
+                  className={`rating-target-tab ${target === 'event' ? 'rating-target-tab-on' : ''}`}
+                  onClick={() => setTarget('event')}
+                >
+                  This event
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={target === 'organizer'}
+                  className={`rating-target-tab ${target === 'organizer' ? 'rating-target-tab-on' : ''}`}
+                  onClick={() => setTarget('organizer')}
+                >
+                  Organizer
+                </button>
+              </div>
+            )}
             <div className="rating-stars">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button

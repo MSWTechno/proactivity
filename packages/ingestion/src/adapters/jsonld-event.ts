@@ -217,6 +217,9 @@ interface EventLd {
   endDate?: string;
   eventStatus?: string;
   eventAttendanceMode?: string;
+  organizer?:
+    | { '@type'?: string; name?: string; url?: string }
+    | Array<{ '@type'?: string; name?: string; url?: string }>;
   location?: {
     '@type'?: string;
     name?: string;
@@ -330,6 +333,9 @@ function mapToActivity(
     costMaxCents: priceMax,
     currency: offers?.priceCurrency ?? null,
     availability,
+    organizerName: pickOrganizer(ev.organizer)?.name ?? null,
+    organizerUrl: pickOrganizer(ev.organizer)?.url ?? null,
+    organizerKey: null, // runner derives from name/url
     url: ev.url ?? detailUrl,
     imageUrl: pickImage(ev.image, detailUrl),
     categories: null,
@@ -406,6 +412,15 @@ function mapAvailability(
   const price = offers ? Number(offers.lowPrice ?? offers.price ?? -1) : -1;
   if (price === 0) return 'free';
   return fallback;
+}
+
+function pickOrganizer(
+  organizer: EventLd['organizer'],
+): { name?: string; url?: string } | null {
+  if (!organizer) return null;
+  const o = Array.isArray(organizer) ? organizer[0] : organizer;
+  if (!o) return null;
+  return { name: o.name, url: o.url };
 }
 
 function pickImage(image: string | string[] | undefined, baseUrl: string): string | null {

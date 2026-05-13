@@ -2,6 +2,7 @@ import { db, activities, sources, sql } from '@proactivity/db';
 import { eq, sql as drizzleSql } from 'drizzle-orm';
 import { getAdapter } from './registry.js';
 import type { NormalizedActivity } from './types.js';
+import { deriveOrganizerKey } from './organizer.js';
 
 const BATCH_SIZE = 100;
 
@@ -96,6 +97,9 @@ async function upsertBatch(sourceId: string, items: NormalizedActivity[]): Promi
         costMaxCents: a.costMaxCents ?? null,
         currency: a.currency ?? 'USD',
         availability: a.availability,
+        organizerName: a.organizerName ?? null,
+        organizerUrl: a.organizerUrl ?? null,
+        organizerKey: a.organizerKey ?? deriveOrganizerKey(a.organizerName, a.organizerUrl),
         url: a.url ?? null,
         imageUrl: a.imageUrl ?? null,
         categories: a.categories ?? null,
@@ -123,6 +127,9 @@ async function upsertBatch(sourceId: string, items: NormalizedActivity[]): Promi
         costMaxCents: drizzleSql`excluded.cost_max_cents`,
         currency: drizzleSql`excluded.currency`,
         availability: drizzleSql`excluded.availability`,
+        organizerName: drizzleSql`excluded.organizer_name`,
+        organizerUrl: drizzleSql`excluded.organizer_url`,
+        organizerKey: drizzleSql`excluded.organizer_key`,
         url: drizzleSql`excluded.url`,
         imageUrl: drizzleSql`excluded.image_url`,
         categories: drizzleSql`excluded.categories`,

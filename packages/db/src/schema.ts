@@ -53,6 +53,14 @@ export const activities = pgTable(
     // [lng, lat] tuple in code; geometry(Point, 4326) in DB.
     location: geometry('location', { type: 'point', mode: 'tuple', srid: 4326 }),
 
+    // Organizer identity (extracted by adapters when available).
+    // organizer_key is a stable slug derived from URL (preferred) or name —
+    // shared across sources so ratings aggregate globally for an organizer
+    // that posts to multiple platforms.
+    organizerName: text('organizer_name'),
+    organizerUrl: text('organizer_url'),
+    organizerKey: text('organizer_key'),
+
     ageMin: integer('age_min'),
     ageMax: integer('age_max'),
 
@@ -84,6 +92,7 @@ export const activities = pgTable(
     startAtIdx: index('activities_start_at_idx').on(t.startAt),
     locationIdx: index('activities_location_idx').using('gist', t.location),
     availabilityIdx: index('activities_availability_idx').on(t.availability),
+    organizerKeyIdx: index('activities_organizer_key_idx').on(t.organizerKey),
   }),
 );
 
@@ -111,7 +120,9 @@ export const ratings = pgTable(
   'ratings',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+    // Nullable for organizer ratings (global identity, no source scope).
+    // For event ratings this is always set to the activity's source.
+    sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'cascade' }),
     targetKind: text('target_kind').notNull(), // 'event' | 'organizer'
     targetKey: text('target_key').notNull(),
 
