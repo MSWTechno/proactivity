@@ -98,8 +98,46 @@ export const categoryClicks = pgTable('category_clicks', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * User-submitted ratings + reviews. Submitted as `pending`, then approved
+ * or rejected by an admin via the CLI. Once approved, displayed publicly.
+ *
+ * `target_kind` = 'event' targets a recurring event series. We use the
+ * source's event id stripped of any "::<occurrence>" suffix as the key so
+ * all occurrences of e.g. weekly trivia share ratings.
+ * (Future: 'organizer' once adapters extract organizer identity.)
+ */
+export const ratings = pgTable(
+  'ratings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+    targetKind: text('target_kind').notNull(), // 'event' | 'organizer'
+    targetKey: text('target_key').notNull(),
+
+    submitterName: text('submitter_name'),
+    submitterEmail: text('submitter_email'),
+    submitterIp: text('submitter_ip'),
+
+    score: integer('score').notNull(), // 1..5
+    review: text('review'),
+
+    status: text('status').notNull().default('pending'), // 'pending'|'approved'|'rejected'
+    moderatedAt: timestamp('moderated_at', { withTimezone: true }),
+    moderatorNote: text('moderator_note'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    targetIdx: index('ratings_target_idx').on(t.targetKind, t.targetKey, t.status),
+    statusIdx: index('ratings_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
 export type Source = typeof sources.$inferSelect;
 export type NewSource = typeof sources.$inferInsert;
 export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
 export type CategoryClick = typeof categoryClicks.$inferSelect;
+export type Rating = typeof ratings.$inferSelect;
+export type NewRating = typeof ratings.$inferInsert;

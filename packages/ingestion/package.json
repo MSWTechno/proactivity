@@ -8,6 +8,7 @@
   "scripts": {
     "start": "tsx --env-file=../../.env src/cli.ts",
     "sources": "tsx --env-file=../../.env src/sources-cli.ts",
+    "ratings": "tsx --env-file=../../.env src/ratings-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

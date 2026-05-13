@@ -43,6 +43,8 @@ interface Activity {
   imageUrl: string | null;
   canonicalCategories: CategoryKey[];
   distanceMeters: number | null;
+  ratingAverage: number | null;
+  ratingCount: number;
 }
 
 type GeoState =
@@ -69,6 +71,7 @@ export default function App() {
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
 
   // Fetch site-wide popularity order once on mount.
   useEffect(() => {
@@ -319,12 +322,18 @@ export default function App() {
         <FlatList
           data={items ?? []}
           keyExtractor={(a) => a.id}
-          renderItem={({ item }) => <ActivityRow activity={item} t={t} />}
+          renderItem={({ item }) => (
+            <ActivityRow activity={item} t={t} onRate={() => setRatingTarget(item)} />
+          )}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
+      )}
+
+      {ratingTarget && (
+        <RatingOverlay activity={ratingTarget} t={t} onClose={() => setRatingTarget(null)} />
       )}
 
       {showOnboarding && onboardingChecked && (
@@ -396,7 +405,7 @@ function GeoBar({ geo, placeName, t }: { geo: GeoState; placeName: string | null
   return <Text style={[styles.geo, { color: t.muted }]}>{label}</Text>;
 }
 
-function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
+function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; onRate: () => void }) {
   const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(activity.startAt);
   const when = start.toLocaleString(undefined, {
@@ -462,11 +471,143 @@ function ActivityRow({ activity, t }: { activity: Activity; t: Theme }) {
                 <Text style={{ color: t.accent, fontSize: 11 }}>{activity.ageRange.label}</Text>
               </View>
             )}
+            {activity.ratingCount > 0 && activity.ratingAverage != null && (
+              <Text style={{ color: '#f59e0b', fontSize: 12, fontWeight: '500' }}>
+                ★ {activity.ratingAverage.toFixed(1)} <Text style={{ color: t.subtle }}>({activity.ratingCount})</Text>
+              </Text>
+            )}
           </View>
           {price && <Text style={[styles.price, { color: t.fg }]}>{price}</Text>}
         </View>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onRate();
+          }}
+          hitSlop={6}
+          style={styles.cardRateBtn}
+        >
+          <Text style={{ color: t.accent, fontSize: 12 }}>Rate ▸</Text>
+        </Pressable>
       </View>
     </Pressable>
+  );
+}
+
+function RatingOverlay({ activity, t, onClose }: { activity: Activity; t: Theme; onClose: () => void }) {
+  const [score, setScore] = useState(0);
+  const [review, setReview] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (score < 1) {
+      setError('Pick a star rating first.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/ratings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activityId: activity.id,
+          score,
+          review: review.trim() || undefined,
+          submitterName: name.trim() || undefined,
+          submitterEmail: email.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      setSubmitted(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
+      {submitted ? (
+        <>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>Thanks!</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
+            Your review of "{activity.title}" is pending approval. It'll show once an admin OKs it.
+          </Text>
+          <Pressable onPress={onClose} style={[styles.onboardPrimary, { backgroundColor: t.accent }]}>
+            <Text style={styles.onboardPrimaryText}>Close</Text>
+          </Pressable>
+        </>
+      ) : (
+        <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>Rate this event</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]} numberOfLines={2}>
+            {activity.title}
+          </Text>
+          <View style={styles.starRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable key={n} onPress={() => setScore(n)} hitSlop={6}>
+                <Text style={{ fontSize: 36, color: score >= n ? '#f59e0b' : t.border, marginHorizontal: 4 }}>
+                  ★
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            value={review}
+            onChangeText={setReview}
+            multiline
+            numberOfLines={4}
+            maxLength={2000}
+            placeholder="Optional — what was it like?"
+            placeholderTextColor={t.subtle}
+            style={[styles.ratingTextarea, { color: t.fg, borderColor: t.border, backgroundColor: t.elev }]}
+          />
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Your name (optional)"
+            placeholderTextColor={t.subtle}
+            maxLength={80}
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev, marginBottom: 8 }]}
+          />
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholder="Email (optional, not shown publicly)"
+            placeholderTextColor={t.subtle}
+            maxLength={200}
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev }]}
+          />
+          {error && <Text style={{ color: t.danger, marginVertical: 8 }}>{error}</Text>}
+          <Pressable
+            onPress={submit}
+            disabled={submitting || score < 1}
+            style={[
+              styles.onboardPrimary,
+              { backgroundColor: t.accent, opacity: submitting || score < 1 ? 0.55 : 1 },
+            ]}
+          >
+            <Text style={styles.onboardPrimaryText}>
+              {submitting ? 'Submitting…' : 'Submit review'}
+            </Text>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.onboardSkip}>
+            <Text style={[styles.onboardSkipText, { color: t.muted }]}>Cancel</Text>
+          </Pressable>
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
@@ -566,4 +707,15 @@ const styles = StyleSheet.create({
   onboardPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   onboardSkip: { paddingVertical: 12, alignItems: 'center' },
   onboardSkipText: { fontSize: 13 },
+  cardRateBtn: { position: 'absolute', right: 10, bottom: 8, paddingVertical: 2 },
+  starRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginVertical: 12 },
+  ratingTextarea: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 14,
+    marginBottom: 8,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
 });

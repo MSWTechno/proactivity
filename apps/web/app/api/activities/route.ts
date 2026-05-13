@@ -27,6 +27,8 @@ interface ActivityRow {
   lng: number | null;
   lat: number | null;
   distance_m: number | null;
+  rating_average: number | null;
+  rating_count: number;
 }
 
 export async function GET(request: Request) {
@@ -58,47 +60,57 @@ export async function GET(request: Request) {
 
   // postgres-js sql fragments — composable and parameterized.
   const distanceExpr = hasUserLocation
-    ? sql`ST_Distance(location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography)`
+    ? sql`ST_Distance(a.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography)`
     : sql`NULL::float8`;
 
   const availabilityFilter = includeUnavailable
     ? sql``
-    : sql`AND availability IN ('onsale','free','dropin')`;
+    : sql`AND a.availability IN ('onsale','free','dropin')`;
 
   const radiusFilter = hasUserLocation
     ? sql`AND ST_DWithin(
-            location::geography,
+            a.location::geography,
             ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
             ${radiusKm * 1000}
           )`
     : sql``;
 
   const costFilter = freeOnly
-    ? sql`AND (cost_min_cents = 0 OR availability = 'free')`
+    ? sql`AND (a.cost_min_cents = 0 OR a.availability = 'free')`
     : maxCostCents != null
-      ? sql`AND (cost_min_cents IS NULL OR cost_min_cents <= ${maxCostCents})`
+      ? sql`AND (a.cost_min_cents IS NULL OR a.cost_min_cents <= ${maxCostCents})`
       : sql``;
 
   const orderClause =
     effectiveSort === 'distance'
       ? sql`ORDER BY distance_m ASC NULLS LAST`
       : effectiveSort === 'cost'
-        ? sql`ORDER BY cost_min_cents ASC NULLS LAST`
-        : sql`ORDER BY start_at ASC`;
+        ? sql`ORDER BY a.cost_min_cents ASC NULLS LAST`
+        : sql`ORDER BY a.start_at ASC`;
 
   const rows = (await sql`
     SELECT
-      id, title, description, start_at, end_at, timezone,
-      venue_name, city, region,
-      age_min, age_max,
-      cost_min_cents, cost_max_cents, currency, availability,
-      url, image_url, categories,
-      ST_X(location) AS lng,
-      ST_Y(location) AS lat,
-      ${distanceExpr} AS distance_m
-    FROM activities
-    WHERE start_at >= now()
-      AND start_at <= now() + (${daysAhead}::int * interval '1 day')
+      a.id, a.title, a.description, a.start_at, a.end_at, a.timezone,
+      a.venue_name, a.city, a.region,
+      a.age_min, a.age_max,
+      a.cost_min_cents, a.cost_max_cents, a.currency, a.availability,
+      a.url, a.image_url, a.categories,
+      ST_X(a.location) AS lng,
+      ST_Y(a.location) AS lat,
+      ${distanceExpr} AS distance_m,
+      r.avg_score AS rating_average,
+      COALESCE(r.cnt, 0)::int AS rating_count
+    FROM activities a
+    LEFT JOIN LATERAL (
+      SELECT AVG(score)::float8 AS avg_score, COUNT(*)::int AS cnt
+      FROM ratings
+      WHERE target_kind = 'event'
+        AND source_id = a.source_id
+        AND target_key = SPLIT_PART(a.source_event_id, '::', 1)
+        AND status = 'approved'
+    ) r ON true
+    WHERE a.start_at >= now()
+      AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')
       ${availabilityFilter}
       ${radiusFilter}
       ${costFilter}
@@ -144,6 +156,8 @@ export async function GET(request: Request) {
       lng: r.lng,
       lat: r.lat,
       distanceMeters: r.distance_m,
+      ratingAverage: r.rating_average,
+      ratingCount: r.rating_count,
     };
   });
 

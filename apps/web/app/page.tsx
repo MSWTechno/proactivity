@@ -23,6 +23,8 @@ interface Activity {
   imageUrl: string | null;
   canonicalCategories: CategoryKey[];
   distanceMeters: number | null;
+  ratingAverage: number | null;
+  ratingCount: number;
 }
 
 type GeoState =
@@ -52,6 +54,7 @@ export default function HomePage() {
   // chips don't shuffle as you click.
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
 
   // Fetch site-wide popularity once on mount.
   useEffect(() => {
@@ -305,11 +308,18 @@ export default function HomePage() {
           <h2 className="day-heading">{label}</h2>
           <div className="list">
             {dayItems.map((a) => (
-              <ActivityCard key={a.id} a={a} />
+              <ActivityCard key={a.id} a={a} onRate={() => setRatingTarget(a)} />
             ))}
           </div>
         </section>
       ))}
+
+      {ratingTarget && (
+        <RatingModal
+          activity={ratingTarget}
+          onClose={() => setRatingTarget(null)}
+        />
+      )}
 
       {items && items.length > 0 && (
         <footer className="footer">
@@ -423,7 +433,7 @@ function LocationBar({
   return null;
 }
 
-function ActivityCard({ a }: { a: Activity }) {
+function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
   const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -484,9 +494,136 @@ function ActivityCard({ a }: { a: Activity }) {
       <div className="card-right">
         <span className={`badge ${isAvailable ? '' : 'badge-soldout'}`}>{availabilityLabel(a.availability)}</span>
         {a.ageRange && <span className="badge badge-age">{a.ageRange.label}</span>}
+        {a.ratingCount > 0 && a.ratingAverage != null && (
+          <span className="rating-summary" title={`${a.ratingCount} rating${a.ratingCount === 1 ? '' : 's'}`}>
+            ★ {a.ratingAverage.toFixed(1)} <span className="rating-count">({a.ratingCount})</span>
+          </span>
+        )}
         {price && <span className="price">{price}</span>}
+        <button
+          type="button"
+          className="rate-link"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRate();
+          }}
+        >
+          Rate ▸
+        </button>
       </div>
     </a>
+  );
+}
+
+function RatingModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
+  const [score, setScore] = useState(0);
+  const [review, setReview] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (score < 1) {
+      setError('Pick a star rating first.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/ratings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activityId: activity.id,
+          score,
+          review: review.trim() || undefined,
+          submitterName: name.trim() || undefined,
+          submitterEmail: email.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      setSubmitted(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="onboarding-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="rating-title">
+      <div className="onboarding-card" onClick={(e) => e.stopPropagation()}>
+        {submitted ? (
+          <>
+            <h2 className="onboarding-title">Thanks!</h2>
+            <p className="onboarding-sub">
+              Your review of <strong>{activity.title}</strong> is pending approval. It'll show up once an admin OKs it.
+            </p>
+            <button type="button" className="btn-primary" onClick={onClose}>Close</button>
+          </>
+        ) : (
+          <>
+            <h2 id="rating-title" className="onboarding-title">Rate this event</h2>
+            <p className="onboarding-sub" style={{ marginBottom: 14 }}>
+              {activity.title}
+            </p>
+            <div className="rating-stars">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`rating-star ${score >= n ? 'rating-star-on' : ''}`}
+                  onClick={() => setScore(n)}
+                  aria-label={`${n} star${n === 1 ? '' : 's'}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="rating-review"
+              value={review}
+              onChange={(e) => setReview(e.target.value)}
+              maxLength={2000}
+              placeholder="Optional — what was it like?"
+              rows={4}
+            />
+            <input
+              type="text"
+              className="rating-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name (optional)"
+              maxLength={80}
+            />
+            <input
+              type="email"
+              className="rating-input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (optional, not shown publicly)"
+              maxLength={200}
+            />
+            {error && <p className="rating-error">{error}</p>}
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={submitting || score < 1}
+              onClick={submit}
+            >
+              {submitting ? 'Submitting…' : 'Submit review'}
+            </button>
+            <button type="button" className="onboarding-skip" onClick={onClose}>Cancel</button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

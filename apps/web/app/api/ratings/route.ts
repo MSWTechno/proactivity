@@ -1,0 +1,74 @@
+import { NextResponse } from 'next/server';
+import { sql } from '@proactivity/db';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+/**
+ * POST /api/ratings
+ * Body: { activityId, score (1-5), review?, submitterName?, submitterEmail? }
+ *
+ * Looks up the activity to determine (source_id, target_key) for the
+ * recurring series, then inserts a pending rating. Admin reviews via the
+ * `pnpm ratings:list/approve/reject` CLI.
+ */
+export async function POST(request: Request) {
+  let body: {
+    activityId?: string;
+    score?: number;
+    review?: string;
+    submitterName?: string;
+    submitterEmail?: string;
+  };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 });
+  }
+
+  if (!body.activityId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.activityId)) {
+    return NextResponse.json({ error: 'invalid activityId' }, { status: 400 });
+  }
+  const score = Number(body.score);
+  if (!Number.isInteger(score) || score < 1 || score > 5) {
+    return NextResponse.json({ error: 'score must be integer 1-5' }, { status: 400 });
+  }
+  const review = (body.review ?? '').trim();
+  if (review.length > 2000) {
+    return NextResponse.json({ error: 'review too long' }, { status: 400 });
+  }
+
+  // Resolve the activity to its (source_id, recurring base key).
+  const lookup = (await sql`
+    SELECT source_id, source_event_id FROM activities WHERE id = ${body.activityId} LIMIT 1
+  `) as unknown as { source_id: string; source_event_id: string }[];
+  if (lookup.length === 0) {
+    return NextResponse.json({ error: 'activity not found' }, { status: 404 });
+  }
+  const { source_id, source_event_id } = lookup[0]!;
+  // Strip any "::<occurrence>" suffix so all instances of a recurring
+  // series share ratings.
+  const targetKey = source_event_id.split('::')[0]!;
+
+  // Capture submitter IP for rate-limiting / abuse review.
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    null;
+
+  await sql`
+    INSERT INTO ratings (
+      source_id, target_kind, target_key,
+      submitter_name, submitter_email, submitter_ip,
+      score, review, status
+    ) VALUES (
+      ${source_id}, 'event', ${targetKey},
+      ${body.submitterName?.trim().slice(0, 80) ?? null},
+      ${body.submitterEmail?.trim().slice(0, 200) ?? null},
+      ${ip},
+      ${score}, ${review || null}, 'pending'
+    )
+  `;
+
+  return NextResponse.json({ ok: true, status: 'pending' });
+}
