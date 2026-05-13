@@ -30,6 +30,10 @@ interface DraftBody {
   url?: string;
   imageUrl?: string;
   categories?: string;
+  // Recurrence (optional)
+  recurrenceFreq?: string;            // 'weekly' | 'biweekly' | 'monthly'
+  recurrenceCount?: number | string;  // 1..52
+  recurrenceSkipDates?: string;       // comma- or newline-separated YYYY-MM-DD
 }
 
 function toCents(v: number | string | undefined): number | null {
@@ -128,6 +132,36 @@ export async function POST(request: Request) {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // Validate recurrence (optional). If recurrenceFreq is set, must be one
+  // of the three supported frequencies and count must be 2..52.
+  let recurrenceFreq: string | null = null;
+  let recurrenceCount: number | null = null;
+  let recurrenceSkipDates: string[] | null = null;
+  if (body.recurrenceFreq && body.recurrenceFreq !== 'none') {
+    if (!['weekly', 'biweekly', 'monthly'].includes(body.recurrenceFreq)) {
+      return NextResponse.json({ error: 'invalid recurrenceFreq' }, { status: 400 });
+    }
+    recurrenceFreq = body.recurrenceFreq;
+    const cnt = typeof body.recurrenceCount === 'number'
+      ? body.recurrenceCount
+      : Number(body.recurrenceCount);
+    if (!Number.isInteger(cnt) || cnt < 2 || cnt > 52) {
+      return NextResponse.json({ error: 'recurrenceCount must be 2..52' }, { status: 400 });
+    }
+    recurrenceCount = cnt;
+    const skipRaw = (body.recurrenceSkipDates ?? '').toString();
+    const skip = skipRaw
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const d of skip) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        return NextResponse.json({ error: `invalid skip date: ${d}` }, { status: 400 });
+      }
+    }
+    recurrenceSkipDates = skip.length > 0 ? skip : null;
+  }
+
   const [row] = await db
     .insert(eventDrafts)
     .values({
@@ -156,6 +190,9 @@ export async function POST(request: Request) {
       url: body.url?.trim() || null,
       imageUrl: body.imageUrl?.trim() || null,
       categories: categoryList.length > 0 ? categoryList : null,
+      recurrenceFreq,
+      recurrenceCount,
+      recurrenceSkipDates,
       status: 'pending',
     })
     .returning({ id: eventDrafts.id });

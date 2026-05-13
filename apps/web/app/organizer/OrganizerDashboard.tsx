@@ -214,6 +214,8 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<string | null>(null); // organizerKey
   const [editing, setEditing] = useState<OrgEvent | null>(null);
+  // When non-null, opens the Add form pre-filled from this event.
+  const [copyFrom, setCopyFrom] = useState<OrgEvent | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -282,14 +284,25 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="admin-tab"
-                      onClick={() => { setEditing(e); setAdding(null); }}
-                      style={{ fontSize: 12 }}
-                    >
-                      Edit
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        className="admin-tab"
+                        onClick={() => { setCopyFrom(e); setAdding(e.organizerKey); setEditing(null); }}
+                        style={{ fontSize: 12 }}
+                        title="Create a new event pre-filled from this one"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-tab"
+                        onClick={() => { setEditing(e); setAdding(null); setCopyFrom(null); }}
+                        style={{ fontSize: 12 }}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -319,8 +332,9 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
           mode={editing ? 'edit' : 'new'}
           organizerKey={adding ?? editing!.organizerKey}
           activityId={editing?.id ?? null}
-          onClose={() => { setAdding(null); setEditing(null); }}
-          onSubmitted={() => { setAdding(null); setEditing(null); load(); }}
+          copyFromActivityId={copyFrom?.id ?? null}
+          onClose={() => { setAdding(null); setEditing(null); setCopyFrom(null); }}
+          onSubmitted={() => { setAdding(null); setEditing(null); setCopyFrom(null); load(); }}
         />
       )}
     </section>
@@ -344,6 +358,9 @@ interface DraftFormValues {
   costMax: string;
   availability: string;
   categories: string;
+  recurrenceFreq: string;   // '' | 'weekly' | 'biweekly' | 'monthly'
+  recurrenceCount: string;
+  recurrenceSkipDates: string;
 }
 
 const EMPTY_VALUES: DraftFormValues = {
@@ -351,7 +368,18 @@ const EMPTY_VALUES: DraftFormValues = {
   venueName: '', address: '', city: '', region: '',
   organizerName: '', organizerUrl: '',
   costMin: '', costMax: '', availability: 'onsale', categories: '',
+  recurrenceFreq: '', recurrenceCount: '4', recurrenceSkipDates: '',
 };
+
+function shiftDateByDays(local: string, days: number): string {
+  if (!local) return local;
+  // local is a YYYY-MM-DDTHH:mm string from datetime-local input.
+  const d = new Date(local);
+  if (isNaN(d.getTime())) return local;
+  d.setDate(d.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function toLocalDateTime(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -365,23 +393,26 @@ function DraftForm({
   mode,
   organizerKey,
   activityId,
+  copyFromActivityId,
   onClose,
   onSubmitted,
 }: {
   mode: 'new' | 'edit';
   organizerKey: string;
   activityId: string | null;
+  copyFromActivityId: string | null;
   onClose: () => void;
   onSubmitted: () => void;
 }) {
   const [values, setValues] = useState<DraftFormValues>(EMPTY_VALUES);
-  const [loading, setLoading] = useState(mode === 'edit');
+  const [loading, setLoading] = useState(mode === 'edit' || !!copyFromActivityId);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mode !== 'edit' || !activityId) return;
-    fetch(`/api/organizer/events/${activityId}`)
+    const fetchId = activityId ?? copyFromActivityId;
+    if (!fetchId) return;
+    fetch(`/api/organizer/events/${fetchId}`)
       .then((r) => r.json() as Promise<{ event?: Record<string, unknown>; error?: string }>)
       .then((d) => {
         if (!d.event) throw new Error(d.error ?? 'Failed to load');
@@ -393,11 +424,16 @@ function DraftForm({
           costMinCents: number | null; costMaxCents: number | null;
           availability: string; categories: string[] | null;
         };
+        // When copying, shift the start/end forward by 7 days so the user
+        // doesn't accidentally re-submit the same date.
+        const isCopy = mode === 'new' && !!copyFromActivityId;
+        const startLocal = toLocalDateTime(e.startAt);
+        const endLocal = toLocalDateTime(e.endAt);
         setValues({
-          title: e.title,
+          title: isCopy ? e.title : e.title,
           description: e.description ?? '',
-          startAt: toLocalDateTime(e.startAt),
-          endAt: toLocalDateTime(e.endAt),
+          startAt: isCopy ? shiftDateByDays(startLocal, 7) : startLocal,
+          endAt: isCopy ? shiftDateByDays(endLocal, 7) : endLocal,
           url: e.url ?? '',
           imageUrl: e.imageUrl ?? '',
           venueName: e.venueName ?? '',
@@ -410,11 +446,14 @@ function DraftForm({
           costMax: e.costMaxCents != null ? (e.costMaxCents / 100).toString() : '',
           availability: e.availability,
           categories: e.categories?.join(', ') ?? '',
+          recurrenceFreq: '',
+          recurrenceCount: '4',
+          recurrenceSkipDates: '',
         });
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [mode, activityId]);
+  }, [mode, activityId, copyFromActivityId]);
 
   const set = (name: keyof DraftFormValues, v: string) =>
     setValues((prev) => ({ ...prev, [name]: v }));
@@ -450,7 +489,7 @@ function DraftForm({
     <div className="onboarding-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div className="onboarding-card draft-modal" onClick={(e) => e.stopPropagation()}>
         <h2 className="onboarding-title">
-          {mode === 'edit' ? 'Propose an edit' : 'Submit a new event'}
+          {mode === 'edit' ? 'Propose an edit' : copyFromActivityId ? 'Copy event' : 'Submit a new event'}
         </h2>
         <p className="onboarding-sub" style={{ marginBottom: 14 }}>
           An admin will review your {mode === 'edit' ? 'changes' : 'submission'} before it goes live.
@@ -522,6 +561,53 @@ function DraftForm({
               <label>Categories (comma-separated)</label>
               <input value={values.categories} onChange={(e) => set('categories', e.target.value)} placeholder="music, family, outdoor" />
             </div>
+
+            {mode === 'new' && (
+              <div className="add-event-field add-event-field-full draft-recurrence">
+                <label>Recurrence</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <select
+                    value={values.recurrenceFreq}
+                    onChange={(e) => set('recurrenceFreq', e.target.value)}
+                    style={{ flex: '0 0 auto' }}
+                  >
+                    <option value="">Doesn't repeat</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every 2 weeks</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  {values.recurrenceFreq && (
+                    <>
+                      <label style={{ fontSize: 12, color: 'var(--fg-muted)', textTransform: 'none', letterSpacing: 0 }}>
+                        for
+                      </label>
+                      <input
+                        type="number"
+                        min={2}
+                        max={52}
+                        value={values.recurrenceCount}
+                        onChange={(e) => set('recurrenceCount', e.target.value)}
+                        style={{ width: 70 }}
+                      />
+                      <label style={{ fontSize: 12, color: 'var(--fg-muted)', textTransform: 'none', letterSpacing: 0 }}>
+                        occurrences
+                      </label>
+                    </>
+                  )}
+                </div>
+                {values.recurrenceFreq && (
+                  <>
+                    <label style={{ marginTop: 6, fontSize: 11 }}>Skip dates (optional)</label>
+                    <input
+                      value={values.recurrenceSkipDates}
+                      onChange={(e) => set('recurrenceSkipDates', e.target.value)}
+                      placeholder="2026-07-04, 2026-12-25"
+                    />
+                    <p className="add-event-hint">Comma-separated YYYY-MM-DD dates to skip (holidays, closures).</p>
+                  </>
+                )}
+              </div>
+            )}
 
             {error && <p className="rating-error" style={{ gridColumn: '1 / -1' }}>{error}</p>}
 

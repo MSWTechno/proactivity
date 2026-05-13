@@ -308,6 +308,13 @@ export const eventDrafts = pgTable(
     imageUrl: text('image_url'),
     categories: text('categories').array(),
 
+    // Recurrence (only used for new-event drafts; ignored for edits).
+    // 'weekly' | 'biweekly' | 'monthly'
+    recurrenceFreq: text('recurrence_freq'),
+    recurrenceCount: integer('recurrence_count'),
+    // ISO YYYY-MM-DD dates to skip (e.g., holidays the org is closed).
+    recurrenceSkipDates: text('recurrence_skip_dates').array(),
+
     // 'pending' | 'approved' | 'rejected'
     status: text('status').notNull().default('pending'),
     moderatorNote: text('moderator_note'),

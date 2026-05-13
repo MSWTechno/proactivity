@@ -20,7 +20,9 @@ export async function GET() {
       d.start_at, d.end_at, d.timezone, d.venue_name, d.address, d.city,
       d.region, d.lat, d.lng, d.age_min, d.age_max, d.cost_min_cents,
       d.cost_max_cents, d.currency, d.availability, d.organizer_name,
-      d.organizer_url, d.url, d.image_url, d.categories, d.created_at,
+      d.organizer_url, d.url, d.image_url, d.categories,
+      d.recurrence_freq, d.recurrence_count, d.recurrence_skip_dates,
+      d.created_at,
       u.email AS submitter_email,
       u.name AS submitter_name,
       a.title AS existing_title,
@@ -77,6 +79,13 @@ export async function GET() {
         imageUrl: r.image_url,
         categories: r.categories,
       },
+      recurrence: r.recurrence_freq
+        ? {
+            freq: r.recurrence_freq as string,
+            count: r.recurrence_count as number,
+            skipDates: (r.recurrence_skip_dates as string[] | null) ?? [],
+          }
+        : null,
       existing: r.activity_id
         ? {
             title: r.existing_title,

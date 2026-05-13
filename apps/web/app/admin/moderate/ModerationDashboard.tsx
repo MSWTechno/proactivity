@@ -65,6 +65,7 @@ interface PendingDraft {
   submitter: { email: string | null; name: string | null };
   proposed: DraftFields;
   existing: DraftFields | null;
+  recurrence: { freq: string; count: number; skipDates: string[] } | null;
   createdAt: string;
 }
 
@@ -320,6 +321,12 @@ export default function ModerationDashboard() {
                     month: 'short', day: 'numeric', year: 'numeric',
                     hour: 'numeric', minute: '2-digit',
                   })}</>
+                )}
+                {d.recurrence && (
+                  <> · <span style={{ color: 'var(--accent)' }}>
+                    repeats {d.recurrence.freq === 'biweekly' ? 'every 2 weeks' : d.recurrence.freq} × {d.recurrence.count}
+                    {d.recurrence.skipDates.length > 0 && ` (skip ${d.recurrence.skipDates.length})`}
+                  </span></>
                 )}
               </p>
               <DraftDiff proposed={d.proposed} existing={d.existing} />

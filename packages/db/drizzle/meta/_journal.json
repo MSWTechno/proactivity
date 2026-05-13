@@ -78,6 +78,13 @@
       "when": 1778691609786,
       "tag": "0010_sticky_young_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778692328609,
+      "tag": "0011_magenta_red_hulk",
+      "breakpoints": true
     }
   ]
 }

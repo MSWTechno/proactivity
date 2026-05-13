@@ -106,42 +106,53 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
             .returning({ id: sources.id })
         )[0]!.id;
 
-    // sourceEventId: stable-ish slug from title + start.
     const slug = (draft.title ?? 'event')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 80);
-    const dateKey = draft.startAt ? new Date(draft.startAt).toISOString().slice(0, 10) : 'unknown';
-    const sourceEventId = `org-${slug}-${dateKey}-${id.slice(0, 8)}`;
 
-    await sql`
-      INSERT INTO activities (
-        source_id, source_event_id,
-        title, description,
-        start_at, end_at, timezone,
-        venue_name, address, city, region,
-        location,
-        age_min, age_max,
-        cost_min_cents, cost_max_cents, currency,
-        availability, is_virtual,
-        organizer_name, organizer_url, organizer_key,
-        url, image_url, categories,
-        raw, manual_override
-      ) VALUES (
-        ${sourceId}, ${sourceEventId},
-        ${draft.title}, ${draft.description},
-        ${draft.startAt}, ${draft.endAt}, ${draft.timezone ?? 'America/New_York'},
-        ${draft.venueName}, ${draft.address}, ${draft.city}, ${draft.region},
-        ${locationExpr},
-        ${draft.ageMin}, ${draft.ageMax},
-        ${draft.costMinCents}, ${draft.costMaxCents}, ${draft.currency ?? 'USD'},
-        ${draft.availability ?? 'onsale'}, false,
-        ${draft.organizerName}, ${draft.organizerUrl}, ${draft.organizerKey},
-        ${draft.url}, ${draft.imageUrl}, ${draft.categories ?? null},
-        ${sql.json({ source: 'organizer_draft', draftId: id })}, true
-      )
-    `;
+    // Expand recurrence into N occurrences (or [draft.startAt] for non-recurring).
+    const occurrences = expandRecurrence(
+      draft.startAt!,
+      draft.endAt,
+      draft.recurrenceFreq,
+      draft.recurrenceCount,
+      draft.recurrenceSkipDates,
+    );
+
+    for (const occ of occurrences) {
+      const dateKey = occ.start.toISOString().slice(0, 10);
+      const sourceEventId = `org-${slug}-${dateKey}-${id.slice(0, 8)}`;
+      await sql`
+        INSERT INTO activities (
+          source_id, source_event_id,
+          title, description,
+          start_at, end_at, timezone,
+          venue_name, address, city, region,
+          location,
+          age_min, age_max,
+          cost_min_cents, cost_max_cents, currency,
+          availability, is_virtual,
+          organizer_name, organizer_url, organizer_key,
+          url, image_url, categories,
+          raw, manual_override
+        ) VALUES (
+          ${sourceId}, ${sourceEventId},
+          ${draft.title}, ${draft.description},
+          ${occ.start}, ${occ.end}, ${draft.timezone ?? 'America/New_York'},
+          ${draft.venueName}, ${draft.address}, ${draft.city}, ${draft.region},
+          ${locationExpr},
+          ${draft.ageMin}, ${draft.ageMax},
+          ${draft.costMinCents}, ${draft.costMaxCents}, ${draft.currency ?? 'USD'},
+          ${draft.availability ?? 'onsale'}, false,
+          ${draft.organizerName}, ${draft.organizerUrl}, ${draft.organizerKey},
+          ${draft.url}, ${draft.imageUrl}, ${draft.categories ?? null},
+          ${sql.json({ source: 'organizer_draft', draftId: id, occurrence: occ.start.toISOString() })}, true
+        )
+        ON CONFLICT (source_id, source_event_id) DO NOTHING
+      `;
+    }
   }
 
   await db
@@ -150,4 +161,43 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     .where(eq(eventDrafts.id, id));
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Expand a recurrence rule into discrete occurrences. Returns [{start, end}]
+ * starting from `firstStart`. End is preserved as a constant duration offset
+ * from start (if endAt was set). Dates matching skipDates (YYYY-MM-DD in the
+ * occurrence's UTC local timezone) are filtered out.
+ *
+ * For non-recurring drafts (freq null), returns the single original event.
+ */
+function expandRecurrence(
+  firstStart: Date,
+  firstEnd: Date | null,
+  freq: string | null,
+  count: number | null,
+  skipDates: string[] | null,
+): { start: Date; end: Date | null }[] {
+  if (!freq || !count || count < 2) {
+    return [{ start: firstStart, end: firstEnd }];
+  }
+  const durationMs = firstEnd ? firstEnd.getTime() - firstStart.getTime() : null;
+  const skip = new Set(skipDates ?? []);
+  const out: { start: Date; end: Date | null }[] = [];
+  for (let i = 0; i < count; i++) {
+    let start: Date;
+    if (freq === 'monthly') {
+      // setMonth normalizes overflow (e.g., Jan 31 + 1m -> Mar 3 if Feb has 28 days)
+      start = new Date(firstStart);
+      start.setMonth(start.getMonth() + i);
+    } else {
+      const stepDays = freq === 'biweekly' ? 14 : 7;
+      start = new Date(firstStart.getTime() + i * stepDays * 86400000);
+    }
+    const dateKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+    if (skip.has(dateKey)) continue;
+    const end = durationMs != null ? new Date(start.getTime() + durationMs) : null;
+    out.push({ start, end });
+  }
+  return out;
 }
