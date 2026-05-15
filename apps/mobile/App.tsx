@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  clearSession,
+  exchangeMagicLink,
+  loadStoredSession,
+  requestMagicLink,
+  tokenFromDeepLink,
+  type MeUser,
+} from './lib/auth';
+import {
   ActivityIndicator,
   Image,
   Linking,
@@ -84,6 +92,41 @@ export default function App() {
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [me, setMe] = useState<MeUser | null>(null);
+  const [signInOpen, setSignInOpen] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  // Load any persisted session at mount.
+  useEffect(() => {
+    loadStoredSession().then((s) => { if (s) setMe(s.user); });
+  }, []);
+
+  // Handle incoming deep links — proactivity://auth/verify?token=...
+  // Both initial-launch URL (cold start) and subsequent foreground URLs.
+  useEffect(() => {
+    const tryExchange = async (url: string | null) => {
+      if (!url) return;
+      const token = tokenFromDeepLink(url);
+      if (!token) return;
+      try {
+        const session = await exchangeMagicLink(token);
+        setMe(session.user);
+        setSignInOpen(false);
+        setSignInError(null);
+      } catch (e) {
+        setSignInError(e instanceof Error ? e.message : 'Sign-in failed');
+        setSignInOpen(true);
+      }
+    };
+    Linking.getInitialURL().then(tryExchange);
+    const sub = Linking.addEventListener('url', (ev) => { tryExchange(ev.url); });
+    return () => sub.remove();
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await clearSession();
+    setMe(null);
+  }, []);
 
   // Fetch site-wide popularity order once on mount.
   useEffect(() => {
@@ -259,12 +302,25 @@ export default function App() {
             </View>
             <Text style={[styles.tagline, { color: t.muted }]}>Things to do near you, this week.</Text>
           </View>
-          <Pressable
-            onPress={() => setShowSubmitForm(true)}
-            style={[styles.headerCta, { backgroundColor: t.accent + '22' }]}
-          >
-            <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Submit event</Text>
-          </Pressable>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <Pressable
+              onPress={() => setShowSubmitForm(true)}
+              style={[styles.headerCta, { backgroundColor: t.accent + '22' }]}
+            >
+              <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Submit event</Text>
+            </Pressable>
+            {me ? (
+              <Pressable onPress={signOut} hitSlop={6}>
+                <Text style={{ color: t.muted, fontSize: 11 }} numberOfLines={1}>
+                  {me.name || me.email.split('@')[0]} · sign out
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => { setSignInError(null); setSignInOpen(true); }} hitSlop={6}>
+                <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Sign in</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
         <GeoBar geo={geo} placeName={placeName} t={t} />
       </View>
@@ -451,6 +507,14 @@ export default function App() {
         <SubmitEventOverlay t={t} onClose={() => setShowSubmitForm(false)} />
       )}
 
+      {signInOpen && (
+        <SignInOverlay
+          t={t}
+          initialError={signInError}
+          onClose={() => { setSignInOpen(false); setSignInError(null); }}
+        />
+      )}
+
       {showOnboarding && onboardingChecked && (
         <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
           <View style={styles.wordmarkRow}>
@@ -616,6 +680,83 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
         </Pressable>
       </View>
     </Pressable>
+  );
+}
+
+function SignInOverlay({
+  t, initialError, onClose,
+}: {
+  t: Theme;
+  initialError: string | null;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(initialError);
+
+  const submit = async () => {
+    setError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter a valid email.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await requestMagicLink(email.trim());
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
+      {sent ? (
+        <>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>Check your email</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
+            We sent a sign-in link to <Text style={{ color: t.fg, fontWeight: '500' }}>{email}</Text>.
+            Tap "Open in app" in the email to finish signing in here. The link expires in 15 minutes.
+          </Text>
+          <Pressable onPress={onClose} style={[styles.onboardPrimary, { backgroundColor: t.accent }]}>
+            <Text style={styles.onboardPrimaryText}>Close</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={[styles.onboardTitle, { color: t.fg }]}>Sign in</Text>
+          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
+            Enter your email and we'll send you a one-time sign-in link. No password.
+          </Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            placeholderTextColor={t.subtle}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            maxLength={200}
+            style={[styles.search, { color: t.fg, borderColor: t.border, backgroundColor: t.elev }]}
+          />
+          {error && <Text style={{ color: t.danger, marginVertical: 8 }}>{error}</Text>}
+          <Pressable
+            onPress={submit}
+            disabled={submitting || !email}
+            style={[styles.onboardPrimary, { backgroundColor: t.accent, opacity: submitting || !email ? 0.55 : 1 }]}
+          >
+            <Text style={styles.onboardPrimaryText}>{submitting ? 'Sending…' : 'Send me a sign-in link'}</Text>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.onboardSkip}>
+            <Text style={[styles.onboardSkipText, { color: t.muted }]}>Cancel</Text>
+          </Pressable>
+        </>
+      )}
+    </View>
   );
 }
 

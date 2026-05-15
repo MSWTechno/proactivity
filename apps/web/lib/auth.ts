@@ -11,7 +11,7 @@
 //                    derived from the request.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { db, users, type User } from '@proactivity/db';
 import { eq } from 'drizzle-orm';
 import { Resend } from 'resend';
@@ -69,11 +69,30 @@ export function verifyMagicLinkToken(token: string): { email: string } | null {
   return verifyToken<{ email: string }>(token, 'magic');
 }
 
-export async function sendMagicLink(email: string, verifyUrl: string): Promise<void> {
+/**
+ * Send a magic-link email. The email contains:
+ *  - `verifyUrl` (https://...) — primary CTA, opens the web sign-in flow.
+ *  - `mobileVerifyUrl` (proactivity://...) — secondary CTA shown beneath,
+ *    opens the mobile app on phones that have it installed. Tapping it on a
+ *    device without the app installed is harmless (does nothing).
+ */
+export async function sendMagicLink(
+  email: string,
+  verifyUrl: string,
+  mobileVerifyUrl?: string,
+): Promise<void> {
   const from = process.env.MAGIC_LINK_FROM ?? 'onboarding@resend.dev';
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY not set');
   const resend = new Resend(apiKey);
+  const mobileBlock = mobileVerifyUrl
+    ? `
+        <p style="margin: 16px 0 0; font-size: 13px; color: #666;">
+          Using the Proactivity mobile app?
+          <a href="${mobileVerifyUrl}" style="color: #6d28d9;">Open in app</a>.
+        </p>
+      `
+    : '';
   await resend.emails.send({
     from,
     to: email,
@@ -87,6 +106,7 @@ export async function sendMagicLink(email: string, verifyUrl: string): Promise<v
             Sign me in
           </a>
         </p>
+        ${mobileBlock}
         <p style="margin: 24px 0 0; font-size: 13px; color: #888;">
           Or paste this URL into your browser:<br>
           <span style="word-break: break-all;">${verifyUrl}</span>
@@ -96,7 +116,7 @@ export async function sendMagicLink(email: string, verifyUrl: string): Promise<v
         </p>
       </div>
     `,
-    text: `Sign in to Proactivity:\n\n${verifyUrl}\n\nThis link expires in 15 minutes. If you didn't request this, you can ignore it.`,
+    text: `Sign in to Proactivity:\n\n${verifyUrl}${mobileVerifyUrl ? `\n\nOpen in mobile app: ${mobileVerifyUrl}` : ''}\n\nThis link expires in 15 minutes. If you didn't request this, you can ignore it.`,
   });
 }
 
@@ -106,13 +126,26 @@ export function mintSessionToken(userId: string): string | null {
   return mintToken({ uid: userId }, SESSION_MAX_AGE_S, 'session');
 }
 
-function verifySessionToken(token: string | undefined): { uid: string } | null {
+export function verifySessionToken(token: string | undefined): { uid: string } | null {
   return verifyToken<{ uid: string }>(token, 'session');
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const jar = await cookies();
-  const session = verifySessionToken(jar.get(SESSION_COOKIE)?.value);
+  // Prefer Authorization: Bearer <token> (mobile clients), fall back to the
+  // session cookie (web). Both carry the same kind of HMAC-signed token; the
+  // mobile flow obtains one via POST /api/auth/exchange instead of having it
+  // dropped into a cookie by the verify redirect.
+  let token: string | undefined;
+  const hdrs = await headers();
+  const authz = hdrs.get('authorization');
+  if (authz && authz.toLowerCase().startsWith('bearer ')) {
+    token = authz.slice(7).trim();
+  }
+  if (!token) {
+    const jar = await cookies();
+    token = jar.get(SESSION_COOKIE)?.value;
+  }
+  const session = verifySessionToken(token);
   if (!session) return null;
   const rows = await db.select().from(users).where(eq(users.id, session.uid)).limit(1);
   return rows[0] ?? null;

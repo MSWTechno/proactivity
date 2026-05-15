@@ -35,17 +35,18 @@ export async function POST(request: Request) {
     process.env.PUBLIC_BASE_URL ??
     `${new URL(request.url).protocol}//${new URL(request.url).host}`;
   const verifyUrl = `${baseUrl}/api/auth/verify?token=${encodeURIComponent(token)}`;
+  const mobileVerifyUrl = `proactivity://auth/verify?token=${encodeURIComponent(token)}`;
 
   // Dev fallback: if no Resend key is configured and we're not in
   // production, print the verify URL to the server console so the dev
   // can click it without setting up email delivery.
   if (!process.env.RESEND_API_KEY && process.env.NODE_ENV !== 'production') {
-    console.log(`\n[dev magic link for ${email}]\n${verifyUrl}\n`);
-    return NextResponse.json({ ok: true, devVerifyUrl: verifyUrl });
+    console.log(`\n[dev magic link for ${email}]\n${verifyUrl}\nmobile: ${mobileVerifyUrl}\n`);
+    return NextResponse.json({ ok: true, devVerifyUrl: verifyUrl, devMobileVerifyUrl: mobileVerifyUrl });
   }
 
   try {
-    await sendMagicLink(email, verifyUrl);
+    await sendMagicLink(email, verifyUrl, mobileVerifyUrl);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'failed to send email' },

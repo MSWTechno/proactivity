@@ -3,6 +3,7 @@
     "name": "Proactivity",
     "slug": "proactivity",
     "version": "0.1.0",
+    "scheme": "proactivity",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
