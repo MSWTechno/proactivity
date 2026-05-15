@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '../../Logo';
+import { generateOccurrences } from '../../../lib/recurrence';
 
 interface PendingRating {
   id: string;
@@ -44,6 +45,7 @@ interface DraftFields {
   description: string | null;
   startAt: string | null;
   endAt: string | null;
+  timezone: string | null;
   venueName: string | null;
   address: string | null;
   city: string | null;
@@ -329,6 +331,16 @@ export default function ModerationDashboard() {
                   </span></>
                 )}
               </p>
+              {d.recurrence && d.proposed.startAt && (
+                <RecurrencePreview
+                  startAt={d.proposed.startAt}
+                  endAt={d.proposed.endAt}
+                  timezone={d.proposed.timezone}
+                  freq={d.recurrence.freq}
+                  count={d.recurrence.count}
+                  skipDates={d.recurrence.skipDates}
+                />
+              )}
               <DraftDiff proposed={d.proposed} existing={d.existing} />
               <div className="admin-card-actions">
                 <button
@@ -398,6 +410,43 @@ export default function ModerationDashboard() {
         </div>
       </section>
     </main>
+  );
+}
+
+function RecurrencePreview({
+  startAt, endAt, timezone, freq, count, skipDates,
+}: {
+  startAt: string;
+  endAt: string | null;
+  timezone: string | null;
+  freq: string;
+  count: number;
+  skipDates: string[];
+}) {
+  const start = new Date(startAt);
+  const end = endAt ? new Date(endAt) : null;
+  const occurrences = generateOccurrences(
+    start,
+    end && !isNaN(end.getTime()) ? end : null,
+    freq, count, skipDates,
+    timezone ?? 'America/New_York',
+  );
+  return (
+    <details style={{ margin: '6px 0', fontSize: 12 }}>
+      <summary style={{ cursor: 'pointer', color: 'var(--fg-muted)' }}>
+        Will create {occurrences.length} event{occurrences.length === 1 ? '' : 's'}
+      </summary>
+      <ul style={{ margin: '4px 0 0', paddingLeft: 18, maxHeight: 160, overflowY: 'auto' }}>
+        {occurrences.map((occ) => (
+          <li key={occ.dateKey}>
+            {occ.start.toLocaleString(undefined, {
+              weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+              hour: 'numeric', minute: '2-digit',
+            })}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

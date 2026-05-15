@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Logo } from '../Logo';
+import { describeRecurrence, generateOccurrences } from '../../lib/recurrence';
 
 interface Claim {
   id: string;
@@ -45,9 +46,14 @@ interface DraftSummary {
   activityId: string | null;
   title: string | null;
   startAt: string | null;
+  endAt: string | null;
+  timezone: string | null;
   status: 'pending' | 'approved' | 'rejected';
   moderatorNote: string | null;
   createdAt: string;
+  recurrenceFreq: string | null;
+  recurrenceCount: number | null;
+  recurrenceSkipDates: string[] | null;
 }
 
 const FREE_TIER_CLICK_LIMIT = 100;
@@ -241,7 +247,21 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
 
       {drafts.filter((d) => d.status === 'pending').length > 0 && (
         <div className="organizer-pending-banner">
-          You have {drafts.filter((d) => d.status === 'pending').length} pending change{drafts.filter((d) => d.status === 'pending').length === 1 ? '' : 's'} awaiting admin review.
+          <div>
+            You have {drafts.filter((d) => d.status === 'pending').length} pending change{drafts.filter((d) => d.status === 'pending').length === 1 ? '' : 's'} awaiting admin review.
+          </div>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12 }}>
+            {drafts.filter((d) => d.status === 'pending').map((d) => (
+              <li key={d.id}>
+                {d.title ?? '(new event)'}
+                {d.recurrenceFreq && d.recurrenceCount && (
+                  <span style={{ marginLeft: 6, color: 'var(--accent)' }}>
+                    · {describeRecurrence(d.recurrenceFreq, d.recurrenceCount, d.recurrenceSkipDates?.length ?? 0)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -319,7 +339,14 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
           <div style={{ marginTop: 8, fontSize: 12 }}>
             {drafts.filter((d) => d.status === 'rejected').slice(0, 10).map((d) => (
               <div key={d.id} style={{ padding: 8, borderLeft: '2px solid var(--danger-fg, #c44)', marginBottom: 6 }}>
-                <div>{d.title ?? '(new event)'}</div>
+                <div>
+                  {d.title ?? '(new event)'}
+                  {d.recurrenceFreq && d.recurrenceCount && (
+                    <span style={{ marginLeft: 6, color: 'var(--fg-muted)', fontSize: 11 }}>
+                      · {describeRecurrence(d.recurrenceFreq, d.recurrenceCount, d.recurrenceSkipDates?.length ?? 0)}
+                    </span>
+                  )}
+                </div>
                 {d.moderatorNote && <div style={{ color: 'var(--fg-muted)' }}>Note: {d.moderatorNote}</div>}
               </div>
             ))}
@@ -457,6 +484,22 @@ function DraftForm({
 
   const set = (name: keyof DraftFormValues, v: string) =>
     setValues((prev) => ({ ...prev, [name]: v }));
+
+  // Live preview of the generated occurrence dates for the recurrence form.
+  // Mirrors what the server will do at approval time.
+  const occurrencePreview = useMemo(() => {
+    if (mode !== 'new' || !values.recurrenceFreq || !values.startAt) return null;
+    const start = new Date(values.startAt);
+    if (isNaN(start.getTime())) return null;
+    const end = values.endAt ? new Date(values.endAt) : null;
+    const count = Number(values.recurrenceCount);
+    if (!Number.isInteger(count) || count < 2 || count > 52) return null;
+    const skip = values.recurrenceSkipDates
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+    return generateOccurrences(start, end && !isNaN(end.getTime()) ? end : null, values.recurrenceFreq, count, skip);
+  }, [mode, values.recurrenceFreq, values.recurrenceCount, values.recurrenceSkipDates, values.startAt, values.endAt]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -605,6 +648,23 @@ function DraftForm({
                     />
                     <p className="add-event-hint">Comma-separated YYYY-MM-DD dates to skip (holidays, closures).</p>
                   </>
+                )}
+                {occurrencePreview && occurrencePreview.length > 0 && (
+                  <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-subtle, #f6f6f7)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginBottom: 4 }}>
+                      Will create {occurrencePreview.length} event{occurrencePreview.length === 1 ? '' : 's'}:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, maxHeight: 140, overflowY: 'auto' }}>
+                      {occurrencePreview.map((occ) => (
+                        <li key={occ.dateKey}>
+                          {occ.start.toLocaleString(undefined, {
+                            weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+                            hour: 'numeric', minute: '2-digit',
+                          })}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}
