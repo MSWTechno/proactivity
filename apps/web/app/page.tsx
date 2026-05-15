@@ -1,9 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, type CategoryKey, ALL_CATEGORY_KEYS } from '@/lib/categories';
 import { placeholderFor } from '@/lib/icons';
 import { Logo } from './Logo';
+import { AdSlot } from './AdSlot';
+
+const AD_SLOT_TOP = process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOP;
+const AD_SLOT_INFEED = process.env.NEXT_PUBLIC_ADSENSE_SLOT_INFEED;
+const AD_EVERY_N_CARDS = 6;
 
 interface Activity {
   id: string;
@@ -365,16 +370,32 @@ export default function HomePage() {
         />
       )}
 
-      {grouped.map(({ label, items: dayItems }) => (
-        <section key={label} className="day-section">
-          <h2 className="day-heading">{label}</h2>
-          <div className="list">
-            {dayItems.map((a) => (
-              <ActivityCard key={a.id} a={a} onRate={() => setRatingTarget(a)} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {grouped.length > 0 && (
+        <AdSlot slot={AD_SLOT_TOP} hidden={noAds} format="horizontal" />
+      )}
+
+      {(() => {
+        let cardIndex = 0;
+        return grouped.map(({ label, items: dayItems }) => (
+          <section key={label} className="day-section">
+            <h2 className="day-heading">{label}</h2>
+            <div className="list">
+              {dayItems.map((a) => {
+                cardIndex++;
+                const showAdAfter = cardIndex % AD_EVERY_N_CARDS === 0;
+                return (
+                  <Fragment key={a.id}>
+                    <ActivityCard a={a} onRate={() => setRatingTarget(a)} />
+                    {showAdAfter && (
+                      <AdSlot slot={AD_SLOT_INFEED} hidden={noAds} format="fluid" />
+                    )}
+                  </Fragment>
+                );
+              })}
+            </div>
+          </section>
+        ));
+      })()}
 
       {ratingTarget && (
         <RatingModal
