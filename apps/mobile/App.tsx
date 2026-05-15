@@ -5,13 +5,13 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
-  FlatList,
   Image,
   Linking,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -75,6 +75,10 @@ export default function App() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
   const [daysAhead, setDaysAhead] = useState(7);
+  const [sort, setSort] = useState<'time' | 'distance' | 'cost'>('time');
+  const [radiusKm, setRadiusKm] = useState<10 | 25 | 50 | 100>(25);
+  const [freeOnly, setFreeOnly] = useState(false);
+  const [includeUnavailable, setIncludeUnavailable] = useState(false);
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
@@ -178,21 +182,24 @@ export default function App() {
     };
   }, [geo]);
 
+  const effectiveSort = sort === 'distance' && geo.kind !== 'ok' ? 'time' : sort;
+
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
     if (geo.kind === 'ok') {
       p.set('lat', String(geo.lat));
       p.set('lng', String(geo.lng));
-      p.set('sort', 'distance');
-    } else {
-      p.set('sort', 'time');
+      p.set('radiusKm', String(radiusKm));
     }
+    p.set('sort', effectiveSort);
     // daysAhead=0 means "all upcoming"; send the sentinel the API expects.
     p.set('daysAhead', daysAhead === 0 ? 'all' : String(daysAhead));
+    if (freeOnly) p.set('freeOnly', '1');
+    if (includeUnavailable) p.set('includeUnavailable', '1');
     if (debouncedSearch) p.set('search', debouncedSearch);
     if (activeCategories.size > 0) p.set('category', [...activeCategories].join(','));
     return p.toString();
-  }, [geo, daysAhead, debouncedSearch, activeCategories]);
+  }, [geo, radiusKm, effectiveSort, daysAhead, freeOnly, includeUnavailable, debouncedSearch, activeCategories]);
 
   const fetchActivities = useCallback(async () => {
     setError(null);
@@ -217,6 +224,8 @@ export default function App() {
     await fetchActivities();
     setRefreshing(false);
   }, [fetchActivities]);
+
+  const groupedSections = useMemo(() => groupByDay(items ?? []), [items]);
 
   const toggleCategory = useCallback((key: CategoryKey) => {
     setActiveCategories((prev) => {
@@ -270,6 +279,79 @@ export default function App() {
         autoCorrect={false}
         returnKeyType="search"
       />
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.catScroll}
+        contentContainerStyle={styles.catRow}
+      >
+        {[
+          { value: 'time' as const, label: 'Soonest' },
+          { value: 'distance' as const, label: 'Distance', disabled: geo.kind !== 'ok' },
+          { value: 'cost' as const, label: 'Cheapest' },
+        ].map((s) => {
+          const active = effectiveSort === s.value;
+          return (
+            <Pressable
+              key={s.value}
+              onPress={() => !s.disabled && setSort(s.value)}
+              disabled={s.disabled}
+              style={[
+                styles.rangeChip,
+                { borderColor: t.border, backgroundColor: t.elev },
+                active && { backgroundColor: t.accent, borderColor: t.accent },
+                s.disabled && { opacity: 0.4 },
+              ]}
+            >
+              <Text style={[
+                styles.rangeChipText,
+                { color: t.fg },
+                active && { color: '#fff' },
+              ]}>{s.label}</Text>
+            </Pressable>
+          );
+        })}
+        {geo.kind === 'ok' && ([10, 25, 50, 100] as const).map((km) => (
+          <Pressable
+            key={`r${km}`}
+            onPress={() => setRadiusKm(km)}
+            style={[
+              styles.rangeChip,
+              { borderColor: t.border, backgroundColor: t.elev },
+              radiusKm === km && { backgroundColor: t.accent, borderColor: t.accent },
+            ]}
+          >
+            <Text style={[
+              styles.rangeChipText,
+              { color: t.fg },
+              radiusKm === km && { color: '#fff' },
+            ]}>{km} km</Text>
+          </Pressable>
+        ))}
+        <Pressable
+          onPress={() => setFreeOnly((v) => !v)}
+          style={[
+            styles.rangeChip,
+            { borderColor: t.border, backgroundColor: t.elev },
+            freeOnly && { backgroundColor: t.accent, borderColor: t.accent },
+          ]}
+        >
+          <Text style={[styles.rangeChipText, { color: t.fg }, freeOnly && { color: '#fff' }]}>Free only</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setIncludeUnavailable((v) => !v)}
+          style={[
+            styles.rangeChip,
+            { borderColor: t.border, backgroundColor: t.elev },
+            includeUnavailable && { backgroundColor: t.accent, borderColor: t.accent },
+          ]}
+        >
+          <Text style={[styles.rangeChipText, { color: t.fg }, includeUnavailable && { color: '#fff' }]}>
+            Include sold-out
+          </Text>
+        </Pressable>
+      </ScrollView>
 
       <View style={styles.rangeRow}>
         {[1, 7, 14, 30, 0].map((d) => (
@@ -338,16 +420,21 @@ export default function App() {
           <Text style={[styles.emptyBody, { color: t.muted }]}>Try clearing filters or widening the date range.</Text>
         </View>
       ) : (
-        <FlatList
-          data={items ?? []}
+        <SectionList
+          sections={groupedSections}
           keyExtractor={(a) => a.id}
           renderItem={({ item }) => (
             <ActivityRow activity={item} t={t} onRate={() => setRatingTarget(item)} />
           )}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={[styles.dayHeading, { color: t.fg, backgroundColor: t.bg }]}>{title}</Text>
+          )}
+          stickySectionHeadersEnabled={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 60 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          SectionSeparatorComponent={() => <View style={{ height: 6 }} />}
           ListFooterComponent={() => (
             <Text style={[styles.disclaimer, { color: t.subtle }]}>
               Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
@@ -768,6 +855,35 @@ function RatingOverlay({ activity, t, onClose }: { activity: Activity; t: Theme;
   );
 }
 
+/**
+ * Group activities into day-bucketed sections, matching the web's day-label
+ * scheme (Today / Tomorrow / weekday name / "Mon, Jun 3").
+ */
+function groupByDay(items: Activity[]): { title: string; data: Activity[] }[] {
+  if (items.length === 0) return [];
+  const map = new Map<string, Activity[]>();
+  const order: string[] = [];
+  for (const a of items) {
+    const label = dayLabel(new Date(a.startAt));
+    if (!map.has(label)) { map.set(label, []); order.push(label); }
+    map.get(label)!.push(a);
+  }
+  return order.map((title) => ({ title, data: map.get(title)! }));
+}
+
+function dayLabel(date: Date): string {
+  const now = new Date();
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((start.getTime() - today.getTime()) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays >= 2 && diffDays <= 6) {
+    return date.toLocaleDateString(undefined, { weekday: 'long' });
+  }
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 function availabilityLabel(a: string): string {
   switch (a) {
     case 'onsale': return 'On sale';
@@ -912,4 +1028,5 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   headerCta: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginTop: 4 },
   disclaimer: { fontSize: 10, lineHeight: 14, marginTop: 24, paddingHorizontal: 8, textAlign: 'center' },
+  dayHeading: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 14, paddingBottom: 6 },
 });
