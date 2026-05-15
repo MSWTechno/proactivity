@@ -9,6 +9,8 @@ interface Claim {
   id: string;
   organizerKey: string;
   organizerName: string | null;
+  organizerUrl: string | null;
+  userCreated: boolean;
   status: 'pending' | 'approved' | 'rejected';
   note: string | null;
   moderatorNote: string | null;
@@ -18,6 +20,18 @@ interface Claim {
   upcomingCount: number;
   totalClicks: number;
   clicks30d: number;
+}
+
+interface UrlSubmission {
+  id: string;
+  url: string;
+  organizerKey: string | null;
+  note: string | null;
+  status: 'pending' | 'imported' | 'rejected' | 'failed';
+  moderatorNote: string | null;
+  importedCount: number | null;
+  createdAt: string;
+  resolvedAt: string | null;
 }
 
 interface Organization {
@@ -64,6 +78,7 @@ export default function OrganizerDashboard() {
   const [orgProActive, setOrgProActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showClaimForm, setShowClaimForm] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,20 +166,31 @@ export default function OrganizerDashboard() {
       <section className="admin-section">
         <h2 className="admin-section-title">
           Your organizers <span className="admin-section-count">{loading ? '…' : claims.length}</span>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => setShowClaimForm((v) => !v)}
-            style={{ marginLeft: 'auto', marginTop: 0, padding: '8px 14px', fontSize: 13 }}
-          >
-            {showClaimForm ? 'Cancel' : '+ Claim an organizer'}
-          </button>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => { setShowCreateForm((v) => !v); setShowClaimForm(false); }}
+              style={{ marginTop: 0, padding: '8px 14px', fontSize: 13 }}
+            >
+              {showCreateForm ? 'Cancel' : '+ Create new'}
+            </button>
+            <button
+              type="button"
+              className="admin-tab"
+              onClick={() => { setShowClaimForm((v) => !v); setShowCreateForm(false); }}
+              style={{ marginTop: 0, padding: '8px 14px', fontSize: 13 }}
+            >
+              {showClaimForm ? 'Cancel' : 'Claim existing'}
+            </button>
+          </span>
         </h2>
 
+        {showCreateForm && <CreateOrgForm onDone={() => { setShowCreateForm(false); load(); }} />}
         {showClaimForm && <ClaimForm onDone={() => { setShowClaimForm(false); load(); }} />}
 
-        {!loading && claims.length === 0 && !showClaimForm && (
-          <p className="admin-empty">No claims yet. Click "+ Claim an organizer" to get started.</p>
+        {!loading && claims.length === 0 && !showClaimForm && !showCreateForm && (
+          <p className="admin-empty">No organizations yet. Click "+ Create new" to add one, or "Claim existing" if your org already has events in Proactivity.</p>
         )}
 
         <div className="organizer-list">
@@ -175,10 +201,18 @@ export default function OrganizerDashboard() {
             >
               <div className="organizer-card-head">
                 <strong>{c.organizerName ?? c.organizerKey}</strong>
+                {c.userCreated && <span className="admin-tag" style={{ fontSize: 10 }}>user-created</span>}
                 <span className={`badge organizer-status-badge organizer-status-${c.status}`}>
                   {c.status}
                 </span>
               </div>
+              {c.organizerUrl && (
+                <div style={{ fontSize: 12 }}>
+                  <a href={c.organizerUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--fg-muted)' }}>
+                    {c.organizerUrl}
+                  </a>
+                </div>
+              )}
               {c.status === 'approved' && (
                 <div className="organizer-card-stats">
                   <div><span>Events</span><strong>{c.eventCount}</strong></div>
@@ -198,6 +232,10 @@ export default function OrganizerDashboard() {
 
       {approvedClaims.length > 0 && (
         <EventsSection approvedClaims={approvedClaims} />
+      )}
+
+      {approvedClaims.length > 0 && (
+        <UrlSubmissionsSection approvedClaims={approvedClaims} />
       )}
 
       {noAdsActive && (
@@ -680,6 +718,228 @@ function DraftForm({
           </form>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Create a brand-new organization. Auto-approves the claim — admin doesn't
+ * gate org creation, but the event drafts submitted under this org still go
+ * through moderation.
+ */
+function CreateOrgForm({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState('');
+  const [url, setUrl] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!name.trim()) { setError('Name is required.'); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/organizer/create-org', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), url: url.trim() || undefined }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="claim-form">
+      <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
+        Create a new organization that doesn't exist in Proactivity yet. You'll
+        be able to submit events for it immediately (admin still reviews each
+        event).
+      </p>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Organization name *"
+        className="rating-input"
+        maxLength={200}
+      />
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="Website URL (optional)"
+        className="rating-input"
+      />
+      {error && <p className="rating-error">{error}</p>}
+      <button type="button" className="btn-primary" onClick={submit} disabled={submitting}>
+        {submitting ? 'Creating…' : 'Create organization'}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * URL submissions: an organizer pastes a URL (event page, listing, calendar)
+ * and admin pulls events from it manually. The submission queue keeps the
+ * organizer informed about status (pending / imported with count / rejected
+ * with reason).
+ */
+function UrlSubmissionsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
+  const [submissions, setSubmissions] = useState<UrlSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch('/api/organizer/url-submissions').then((r) => r.json());
+    setSubmissions(res.submissions ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const keyToName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of approvedClaims) m.set(c.organizerKey, c.organizerName ?? c.organizerKey);
+    return m;
+  }, [approvedClaims]);
+
+  return (
+    <section className="admin-section">
+      <h2 className="admin-section-title">
+        URLs to scrape <span className="admin-section-count">{loading ? '…' : submissions.length}</span>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setShowForm((v) => !v)}
+          style={{ marginLeft: 'auto', marginTop: 0, padding: '8px 14px', fontSize: 13 }}
+        >
+          {showForm ? 'Cancel' : '+ Submit a URL'}
+        </button>
+      </h2>
+      <p className="onboarding-sub" style={{ marginTop: -6, marginBottom: 12 }}>
+        Paste a page that lists your events (event detail page, calendar, season schedule).
+        Admin will try to pull events from it and let you know how it went.
+      </p>
+
+      {showForm && (
+        <UrlSubmissionForm
+          approvedClaims={approvedClaims}
+          onDone={() => { setShowForm(false); load(); }}
+        />
+      )}
+
+      {!loading && submissions.length === 0 && !showForm && (
+        <p className="admin-empty">No URL submissions yet.</p>
+      )}
+
+      <div className="organizer-event-list">
+        {submissions.map((s) => (
+          <div key={s.id} className="organizer-event-row">
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className={`badge organizer-status-badge organizer-status-${s.status === 'imported' ? 'approved' : s.status === 'pending' ? 'pending' : 'rejected'}`}>
+                  {s.status}
+                </span>
+                {s.organizerKey && (
+                  <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                    {keyToName.get(s.organizerKey) ?? s.organizerKey}
+                  </span>
+                )}
+                {s.importedCount != null && (
+                  <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                    · {s.importedCount} event{s.importedCount === 1 ? '' : 's'} imported
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <a href={s.url} target="_blank" rel="noreferrer">{s.url}</a>
+              </div>
+              {s.note && <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>{s.note}</div>}
+              {s.moderatorNote && (
+                <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>
+                  Note: {s.moderatorNote}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function UrlSubmissionForm({
+  approvedClaims, onDone,
+}: { approvedClaims: Claim[]; onDone: () => void }) {
+  const [url, setUrl] = useState('');
+  const [organizerKey, setOrganizerKey] = useState(approvedClaims[0]?.organizerKey ?? '');
+  const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!url.trim()) { setError('URL is required.'); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/organizer/url-submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: url.trim(),
+          organizerKey: organizerKey || undefined,
+          note: note.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="claim-form">
+      <input
+        type="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://example.com/events *"
+        className="rating-input"
+      />
+      {approvedClaims.length > 0 && (
+        <select
+          value={organizerKey}
+          onChange={(e) => setOrganizerKey(e.target.value)}
+          className="rating-input"
+        >
+          <option value="">(no specific organizer)</option>
+          {approvedClaims.map((c) => (
+            <option key={c.organizerKey} value={c.organizerKey}>
+              {c.organizerName ?? c.organizerKey}
+            </option>
+          ))}
+        </select>
+      )}
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Anything helpful to know? (e.g., 'season schedule page; ignore tournaments')"
+        rows={3}
+        className="rating-review"
+      />
+      {error && <p className="rating-error">{error}</p>}
+      <button type="button" className="btn-primary" onClick={submit} disabled={submitting}>
+        {submitting ? 'Submitting…' : 'Submit URL'}
+      </button>
     </div>
   );
 }

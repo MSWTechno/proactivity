@@ -85,6 +85,13 @@
       "when": 1778692328609,
       "tag": "0011_magenta_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778850206284,
+      "tag": "0012_flippant_drax",
+      "breakpoints": true
     }
   ]
 }

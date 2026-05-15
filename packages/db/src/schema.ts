@@ -331,3 +331,34 @@ export const eventDrafts = pgTable(
 
 export type EventDraft = typeof eventDrafts.$inferSelect;
 export type NewEventDraft = typeof eventDrafts.$inferInsert;
+
+/**
+ * URLs an organizer wants admin to scrape for events. Admin runs the import
+ * out-of-band (manual queue), then marks the row as 'imported' (with a
+ * count) or 'rejected' (with a note). organizerKey is optional — useful for
+ * routing newly-imported activities to an existing claim, but a user can
+ * submit a URL without naming an org.
+ */
+export const urlSubmissions = pgTable(
+  'url_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    organizerKey: text('organizer_key'),
+    url: text('url').notNull(),
+    note: text('note'),
+    // 'pending' | 'imported' | 'rejected' | 'failed'
+    status: text('status').notNull().default('pending'),
+    moderatorNote: text('moderator_note'),
+    importedCount: integer('imported_count'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => ({
+    statusIdx: index('url_submissions_status_idx').on(t.status, t.createdAt),
+    userIdx: index('url_submissions_user_idx').on(t.userId, t.createdAt),
+  }),
+);
+
+export type UrlSubmission = typeof urlSubmissions.$inferSelect;
+export type NewUrlSubmission = typeof urlSubmissions.$inferInsert;

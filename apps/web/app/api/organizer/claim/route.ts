@@ -97,12 +97,15 @@ export async function GET() {
   return NextResponse.json({
     claims: claims.map((c) => {
       const s = statsByKey.get(c.organizerKey);
+      const { url: noteUrl, rest: noteRest } = parseNote(c.note);
       return {
         id: c.id,
         organizerKey: c.organizerKey,
         organizerName: c.organizerName,
+        organizerUrl: noteUrl,
+        userCreated: c.organizerKey.startsWith('user:'),
         status: c.status,
-        note: c.note,
+        note: noteRest,
         moderatorNote: c.moderatorNote,
         createdAt: c.createdAt,
         resolvedAt: c.resolvedAt,
@@ -113,4 +116,16 @@ export async function GET() {
       };
     }),
   });
+}
+
+/**
+ * User-created orgs store the org URL inside `note` with a `[org-url] `
+ * marker (avoids a schema column for this single optional field). Strip it
+ * out so the dashboard can render it as a separate link.
+ */
+function parseNote(note: string | null): { url: string | null; rest: string | null } {
+  if (!note) return { url: null, rest: null };
+  const match = note.match(/^\[org-url\] (\S+)\s*(.*)$/s);
+  if (!match) return { url: null, rest: note };
+  return { url: match[1] ?? null, rest: match[2]?.trim() || null };
 }

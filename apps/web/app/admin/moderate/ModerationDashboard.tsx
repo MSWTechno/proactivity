@@ -71,12 +71,25 @@ interface PendingDraft {
   createdAt: string;
 }
 
+interface UrlSubmission {
+  id: string;
+  url: string;
+  organizerKey: string | null;
+  note: string | null;
+  status: string;
+  importedCount: number | null;
+  moderatorNote: string | null;
+  createdAt: string;
+  submitter: { email: string | null; name: string | null };
+}
+
 export default function ModerationDashboard() {
   const router = useRouter();
   const [ratings, setRatings] = useState<PendingRating[]>([]);
   const [submissions, setSubmissions] = useState<NewSubmission[]>([]);
   const [claims, setClaims] = useState<PendingClaim[]>([]);
   const [drafts, setDrafts] = useState<PendingDraft[]>([]);
+  const [urlSubmissions, setUrlSubmissions] = useState<UrlSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -85,9 +98,10 @@ export default function ModerationDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [queueRes, draftRes] = await Promise.all([
+      const [queueRes, draftRes, urlRes] = await Promise.all([
         fetch('/api/admin/queue'),
         fetch('/api/admin/event-drafts'),
+        fetch('/api/admin/url-submissions'),
       ]);
       if (!queueRes.ok) throw new Error(`HTTP ${queueRes.status}`);
       const data = (await queueRes.json()) as {
@@ -101,6 +115,10 @@ export default function ModerationDashboard() {
       if (draftRes.ok) {
         const dd = (await draftRes.json()) as { drafts: PendingDraft[] };
         setDrafts(dd.drafts ?? []);
+      }
+      if (urlRes.ok) {
+        const ud = (await urlRes.json()) as { submissions: UrlSubmission[] };
+        setUrlSubmissions(ud.submissions ?? []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -161,6 +179,44 @@ export default function ModerationDashboard() {
         throw new Error(d.error ?? `HTTP ${res.status}`);
       }
       setDrafts((ds) => ds.filter((d) => d.id !== id));
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const resolveUrlSubmission = async (
+    id: string,
+    action: 'imported' | 'rejected' | 'failed',
+  ) => {
+    setBusyId(id);
+    try {
+      let importedCount: number | undefined;
+      let note: string | undefined;
+      if (action === 'imported') {
+        const cntStr = window.prompt('How many events were imported?', '1');
+        if (cntStr == null) { setBusyId(null); return; }
+        const cnt = Number(cntStr);
+        if (!Number.isInteger(cnt) || cnt < 0) {
+          alert('Invalid count.');
+          setBusyId(null);
+          return;
+        }
+        importedCount = cnt;
+      } else {
+        note = window.prompt(`Optional ${action} note for the submitter:`) ?? undefined;
+      }
+      const res = await fetch(`/api/admin/url-submissions/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, note, importedCount }),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setUrlSubmissions((us) => us.filter((u) => u.id !== id));
     } catch (e) {
       alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -354,6 +410,59 @@ export default function ModerationDashboard() {
                   className="admin-btn admin-btn-reject"
                   disabled={busyId === d.id}
                   onClick={() => moderateDraft(d.id, 'reject')}
+                >Reject</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <h2 className="admin-section-title">
+          URL submissions <span className="admin-section-count">{loading ? '…' : urlSubmissions.length}</span>
+        </h2>
+        {!loading && urlSubmissions.length === 0 && (
+          <p className="admin-empty">Nothing to review.</p>
+        )}
+        <div className="admin-list">
+          {urlSubmissions.map((u) => (
+            <article key={u.id} className="admin-card">
+              <div className="admin-card-head">
+                <span className="admin-card-from">
+                  {u.submitter.name ?? '(no name)'}{' '}
+                  {u.submitter.email && (
+                    <a href={`mailto:${u.submitter.email}`} className="admin-card-email">&lt;{u.submitter.email}&gt;</a>
+                  )}
+                </span>
+                <span className="admin-card-meta">{new Date(u.createdAt).toLocaleString()}</span>
+              </div>
+              <p className="admin-card-context" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <a href={u.url} target="_blank" rel="noreferrer">{u.url}</a>
+              </p>
+              {u.organizerKey && (
+                <p className="admin-card-context" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                  For organizer: <code>{u.organizerKey}</code>
+                </p>
+              )}
+              {u.note && <p className="admin-card-review">{u.note}</p>}
+              <div className="admin-card-actions">
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-approve"
+                  disabled={busyId === u.id}
+                  onClick={() => resolveUrlSubmission(u.id, 'imported')}
+                >Mark imported</button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={busyId === u.id}
+                  onClick={() => resolveUrlSubmission(u.id, 'failed')}
+                >Mark failed</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-reject"
+                  disabled={busyId === u.id}
+                  onClick={() => resolveUrlSubmission(u.id, 'rejected')}
                 >Reject</button>
               </div>
             </article>
