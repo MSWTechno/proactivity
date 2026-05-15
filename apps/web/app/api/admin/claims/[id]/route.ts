@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { requireAdmin } from '@/lib/admin-auth';
+import { notifyClaimResolved } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,11 +29,22 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   const note = body.note?.trim().slice(0, 500) ?? null;
 
   const result = (await sql`
-    UPDATE organizer_claims
+    UPDATE organizer_claims c
     SET status = ${status}, moderator_note = ${note}, resolved_at = now()
-    WHERE id = ${id}
-    RETURNING id
-  `) as unknown as { id: string }[];
+    FROM users u
+    WHERE c.id = ${id} AND u.id = c.user_id
+    RETURNING c.id, c.organizer_key, c.organizer_name, u.email AS user_email
+  `) as unknown as { id: string; organizer_key: string; organizer_name: string | null; user_email: string }[];
   if (result.length === 0) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+  // Fire-and-forget email — already swallows its own errors.
+  const row = result[0]!;
+  void notifyClaimResolved({
+    to: row.user_email,
+    organizerName: row.organizer_name ?? row.organizer_key,
+    action: status,
+    moderatorNote: note,
+  });
+
   return NextResponse.json({ ok: true });
 }

@@ -33,9 +33,12 @@ export const sql: Sql = new Proxy(function () {} as unknown as Sql, {
   apply(_target, thisArg, args) {
     return Reflect.apply(getClient() as unknown as (...a: unknown[]) => unknown, thisArg, args);
   },
-  get(_target, prop, receiver) {
-    const client = getClient() as unknown as object;
-    return Reflect.get(client, prop, receiver);
+  get(_target, prop) {
+    const client = getClient() as unknown as Record<string | symbol, unknown>;
+    const val = client[prop];
+    // Bind methods to the underlying client so internals (e.g. begin's
+    // transaction wiring) see the real connection as `this`, not the Proxy.
+    return typeof val === 'function' ? (val as (...a: unknown[]) => unknown).bind(client) : val;
   },
 });
 

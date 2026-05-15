@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { db, urlSubmissions } from '@proactivity/db';
+import { db, urlSubmissions, users } from '@proactivity/db';
 import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
+import { notifyUrlSubmissionResolved } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -48,10 +49,24 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       resolvedAt: new Date(),
     })
     .where(eq(urlSubmissions.id, id))
-    .returning({ id: urlSubmissions.id });
+    .returning({ id: urlSubmissions.id, url: urlSubmissions.url, userId: urlSubmissions.userId });
 
   if (result.length === 0) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
+
+  // Fire-and-forget notify the submitter.
+  const sub = result[0]!;
+  const userRow = (await db.select({ email: users.email }).from(users).where(eq(users.id, sub.userId)).limit(1))[0];
+  if (userRow?.email) {
+    void notifyUrlSubmissionResolved({
+      to: userRow.email,
+      url: sub.url,
+      action: body.action,
+      importedCount,
+      moderatorNote: note,
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }
