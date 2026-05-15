@@ -417,6 +417,9 @@ export default function HomePage() {
       <p className="disclaimer">
         Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
       </p>
+      <p className="disclaimer" style={{ marginTop: 8 }}>
+        <a href="/privacy" style={{ color: 'var(--fg-muted)' }}>Privacy policy</a>
+      </p>
 
       {showOnboarding && (
         <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">

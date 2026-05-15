@@ -1061,6 +1061,38 @@ main {
   color: var(--fg-subtle);
 }
 
+/* -------- legal/static pages (privacy, terms) -------- */
+.legal {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 18px 80px;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.legal h1 { font-size: 28px; margin: 14px 0 4px; }
+.legal h2 { font-size: 18px; margin: 28px 0 8px; }
+.legal h3 { font-size: 15px; margin: 18px 0 6px; }
+.legal p, .legal ul { font-size: 14px; }
+.legal ul { padding-left: 22px; }
+.legal li { margin: 4px 0; }
+.legal a { color: var(--accent); }
+.legal code {
+  background: var(--bg-subtle, #f4f4f4);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+.legal-meta { color: var(--fg-muted); font-size: 12px; margin-top: 0; }
+.legal-tldr {
+  background: var(--bg-subtle, #f6f6f7);
+  border-left: 3px solid var(--accent);
+  padding: 12px 18px;
+  margin: 18px 0 28px;
+  border-radius: 0 6px 6px 0;
+}
+.legal-tldr h2 { margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fg-muted); }
+.legal-tldr ul { margin: 6px 0 0; }
+
 /* -------- AdSense slots -------- */
 .adslot {
   display: block;

@@ -499,9 +499,17 @@ export default function App() {
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           SectionSeparatorComponent={() => <View style={{ height: 6 }} />}
           ListFooterComponent={() => (
-            <Text style={[styles.disclaimer, { color: t.subtle }]}>
-              Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
-            </Text>
+            <View>
+              <Text style={[styles.disclaimer, { color: t.subtle }]}>
+                Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
+              </Text>
+              <Pressable
+                onPress={() => Linking.openURL('https://proactivity.app/privacy').catch(() => {})}
+                style={{ paddingVertical: 8, alignItems: 'center' }}
+              >
+                <Text style={{ color: t.muted, fontSize: 11 }}>Privacy policy</Text>
+              </Pressable>
+            </View>
           )}
         />
       )}
