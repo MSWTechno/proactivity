@@ -1061,7 +1061,7 @@ main {
   color: var(--fg-subtle);
 }
 
-/* -------- AdSense slots + cookie banner -------- */
+/* -------- AdSense slots -------- */
 .adslot {
   display: block;
   min-height: 90px;
@@ -1070,35 +1070,6 @@ main {
   border-radius: 8px;
   /* AdSense fills the height; this ensures the layout doesn't collapse before
      the ad loads, which AdSense penalizes as "Ad served on a 0px slot". */
-}
-
-.cookie-banner {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: var(--fg, #111);
-  color: var(--bg, #fff);
-  padding: 12px 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 13px;
-  line-height: 1.4;
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.12);
-}
-.cookie-banner p { margin: 0; flex: 1; }
-.cookie-banner-ack {
-  flex: 0 0 auto;
-  padding: 8px 16px;
-  background: var(--accent, #6d28d9);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
 }
 
 /* -------- mobile -------- */

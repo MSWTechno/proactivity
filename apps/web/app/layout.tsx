@@ -1,7 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { CookieBanner } from './CookieBanner';
 
 const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
 
@@ -29,10 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           />
         )}
       </head>
-      <body>
-        {children}
-        <CookieBanner />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
