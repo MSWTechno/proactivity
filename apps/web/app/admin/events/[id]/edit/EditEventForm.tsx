@@ -92,6 +92,7 @@ export default function EditEventForm({ id }: { id: string }) {
   const router = useRouter();
   const [event, setEvent] = useState<EventRow | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [isVirtual, setIsVirtual] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +105,7 @@ export default function EditEventForm({ id }: { id: string }) {
       })
       .then(({ event: e }) => {
         setEvent(e);
+        setIsVirtual(e.isVirtual);
         setValues({
           title: e.title,
           description: e.description ?? '',
@@ -142,7 +144,7 @@ export default function EditEventForm({ id }: { id: string }) {
       const res = await fetch(`/api/admin/events/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, isVirtual }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -174,8 +176,8 @@ export default function EditEventForm({ id }: { id: string }) {
           {isScraped && (
             <>
               {' '}
-              <span style={{ color: 'var(--warning-fg)' }}>
-                — this event is from an automated source. Edits will be overwritten when ingestion next runs unless you also disable that source.
+              <span style={{ color: 'var(--fg-muted)' }}>
+                — this event is from an automated source. Saving will lock these fields against future ingestion overwrites.
               </span>
             </>
           )}
@@ -214,6 +216,21 @@ export default function EditEventForm({ id }: { id: string }) {
               {f.hint && <p className="add-event-hint">{f.hint}</p>}
             </div>
           ))}
+
+          <div className="add-event-field add-event-field-full">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={isVirtual}
+                onChange={(e) => setIsVirtual(e.target.checked)}
+                style={{ width: 'auto' }}
+              />
+              <span>Mark as online / virtual event</span>
+            </label>
+            <p className="add-event-hint">
+              Virtual events are hidden from the default location-filtered list. This setting sticks across re-ingestion.
+            </p>
+          </div>
 
           {error && <p className="rating-error" style={{ gridColumn: '1 / -1' }}>{error}</p>}
 

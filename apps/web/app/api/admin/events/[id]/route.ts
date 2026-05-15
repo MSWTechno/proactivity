@@ -117,6 +117,7 @@ interface PatchBody {
   costMax?: string;
   currency?: string;
   availability?: string;
+  isVirtual?: boolean;
   organizerName?: string;
   organizerUrl?: string;
   url?: string;
@@ -126,9 +127,9 @@ interface PatchBody {
 
 /**
  * PATCH /api/admin/events/:id
- * Update fields on an existing event. Note: re-ingestion of scraped sources
- * will overwrite changes. Manually-entered events are safe to edit because
- * their source has enabled=false.
+ * Update fields on an existing event. Always sets manual_override=true so
+ * re-ingestion of scraped sources won't overwrite the edit. Admin can mark
+ * any event as is_virtual to keep it labeled "online" indefinitely.
  */
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requireAdmin();
@@ -220,11 +221,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       cost_max_cents = ${dollarsToCents(body.costMax)},
       currency = ${body.currency?.trim() || 'USD'},
       availability = ${availability},
+      is_virtual = ${body.isVirtual === true},
       organizer_name = ${body.organizerName?.trim() || null},
       organizer_url = ${body.organizerUrl?.trim() || null},
       url = ${body.url?.trim() || null},
       image_url = ${body.imageUrl?.trim() || null},
       categories = ${categoryList.length > 0 ? categoryList : null},
+      manual_override = true,
       updated_at = now()
     WHERE id = ${id}
     RETURNING id
