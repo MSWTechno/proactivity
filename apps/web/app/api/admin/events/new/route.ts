@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, activities, sources } from '@proactivity/db';
 import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
+import { isSafeHttpUrl } from '@/lib/url';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -41,12 +42,8 @@ export async function POST(request: Request) {
   // Validate URL fields if provided.
   for (const f of ['url', 'imageUrl', 'organizerUrl'] as const) {
     const v = body[f];
-    if (v && v.trim()) {
-      try {
-        new URL(v.trim());
-      } catch {
-        return NextResponse.json({ error: `invalid ${f}` }, { status: 400 });
-      }
+    if (v && v.trim() && !isSafeHttpUrl(v.trim())) {
+      return NextResponse.json({ error: `invalid ${f}` }, { status: 400 });
     }
   }
 

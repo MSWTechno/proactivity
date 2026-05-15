@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, organizerClaims, urlSubmissions } from '@proactivity/db';
 import { and, desc, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { isSafeHttpUrl } from '@/lib/url';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,11 +27,11 @@ export async function POST(request: Request) {
 
   const urlRaw = body.url?.trim();
   if (!urlRaw) return NextResponse.json({ error: 'url required' }, { status: 400 });
-  try { new URL(urlRaw); } catch {
-    return NextResponse.json({ error: 'invalid url' }, { status: 400 });
-  }
   if (urlRaw.length > 2000) {
     return NextResponse.json({ error: 'url too long' }, { status: 400 });
+  }
+  if (!isSafeHttpUrl(urlRaw)) {
+    return NextResponse.json({ error: 'invalid url' }, { status: 400 });
   }
 
   const organizerKey = body.organizerKey?.trim() || null;

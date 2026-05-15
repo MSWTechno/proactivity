@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, organizerClaims } from '@proactivity/db';
 import { and, eq, like, sql as ormSql } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { isSafeHttpUrl } from '@/lib/url';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,10 +38,8 @@ export async function POST(request: Request) {
   }
 
   const urlRaw = body.url?.trim() || null;
-  if (urlRaw) {
-    try { new URL(urlRaw); } catch {
-      return NextResponse.json({ error: 'invalid url' }, { status: 400 });
-    }
+  if (urlRaw && !isSafeHttpUrl(urlRaw)) {
+    return NextResponse.json({ error: 'invalid url' }, { status: 400 });
   }
 
   // Per-user cap on user-created orgs.

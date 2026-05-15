@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { requireAdmin } from '@/lib/admin-auth';
+import { isSafeHttpUrl } from '@/lib/url';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -159,10 +160,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   for (const f of ['url', 'imageUrl', 'organizerUrl'] as const) {
     const v = body[f];
-    if (v && v.trim()) {
-      try { new URL(v.trim()); } catch {
-        return NextResponse.json({ error: `invalid ${f}` }, { status: 400 });
-      }
+    if (v && v.trim() && !isSafeHttpUrl(v.trim())) {
+      return NextResponse.json({ error: `invalid ${f}` }, { status: 400 });
     }
   }
 

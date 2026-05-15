@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
+import { isSafeHttpUrl } from '@/lib/url';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,11 +43,11 @@ export async function POST(request: Request) {
 
   let eventUrl: string | null = null;
   if (body.eventUrl?.trim()) {
-    try {
-      eventUrl = new URL(body.eventUrl.trim()).toString();
-    } catch {
+    const trimmed = body.eventUrl.trim();
+    if (!isSafeHttpUrl(trimmed)) {
       return NextResponse.json({ error: 'invalid eventUrl' }, { status: 400 });
     }
+    eventUrl = new URL(trimmed).toString();
   }
 
   const ip =
