@@ -11,6 +11,7 @@ import {
   tokenFromDeepLink,
   type MeUser,
 } from './lib/auth';
+import { OrganizerScreen } from './screens/Organizer';
 import {
   ActivityIndicator,
   Image,
@@ -95,6 +96,7 @@ export default function App() {
   const [me, setMe] = useState<MeUser | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [organizerOpen, setOrganizerOpen] = useState(false);
 
   // Load any persisted session at mount.
   useEffect(() => {
@@ -310,11 +312,16 @@ export default function App() {
               <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Submit event</Text>
             </Pressable>
             {me ? (
-              <Pressable onPress={signOut} hitSlop={6}>
-                <Text style={{ color: t.muted, fontSize: 11 }} numberOfLines={1}>
-                  {me.name || me.email.split('@')[0]} · sign out
-                </Text>
-              </Pressable>
+              <>
+                <Pressable onPress={() => setOrganizerOpen(true)} hitSlop={6}>
+                  <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Organizer</Text>
+                </Pressable>
+                <Pressable onPress={signOut} hitSlop={6}>
+                  <Text style={{ color: t.muted, fontSize: 11 }} numberOfLines={1}>
+                    {me.name || me.email.split('@')[0]} · sign out
+                  </Text>
+                </Pressable>
+              </>
             ) : (
               <Pressable onPress={() => { setSignInError(null); setSignInOpen(true); }} hitSlop={6}>
                 <Text style={{ color: t.accent, fontSize: 12, fontWeight: '500' }}>Sign in</Text>
@@ -512,6 +519,14 @@ export default function App() {
           t={t}
           initialError={signInError}
           onClose={() => { setSignInOpen(false); setSignInError(null); }}
+        />
+      )}
+
+      {organizerOpen && me && (
+        <OrganizerScreen
+          me={me}
+          t={t}
+          onClose={() => setOrganizerOpen(false)}
         />
       )}
 
