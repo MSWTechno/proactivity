@@ -3,6 +3,7 @@ import { db, eventDrafts, organizerClaims, sql } from '@proactivity/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { isSafeHttpUrl } from '@/lib/url';
+import { notifyAdminOfPending } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -195,6 +196,17 @@ export async function POST(request: Request) {
       status: 'pending',
     })
     .returning({ id: eventDrafts.id });
+
+  const orgLabel = body.organizerName?.trim() || claim.organizerName || organizerKey;
+  const recurrenceLabel = recurrenceFreq && recurrenceCount
+    ? ` (repeats ${recurrenceFreq} × ${recurrenceCount})`
+    : '';
+  void notifyAdminOfPending({
+    kind: 'event_draft',
+    summary: `"${title}" by ${orgLabel}${recurrenceLabel}`,
+    detail: body.description?.trim() ?? null,
+    submitterEmail: user.email,
+  });
 
   return NextResponse.json({ ok: true, id: row!.id });
 }

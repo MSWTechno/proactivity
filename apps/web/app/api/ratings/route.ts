@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
+import { notifyAdminOfPending } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -69,6 +70,8 @@ export async function POST(request: Request) {
     request.headers.get('x-real-ip') ||
     null;
 
+  const submitterName = body.submitterName?.trim().slice(0, 80) ?? null;
+  const submitterEmail = body.submitterEmail?.trim().slice(0, 200) ?? null;
   await sql`
     INSERT INTO ratings (
       source_id, target_kind, target_key,
@@ -76,12 +79,17 @@ export async function POST(request: Request) {
       score, review, status
     ) VALUES (
       ${storedSourceId}, ${target}, ${targetKey},
-      ${body.submitterName?.trim().slice(0, 80) ?? null},
-      ${body.submitterEmail?.trim().slice(0, 200) ?? null},
-      ${ip},
+      ${submitterName}, ${submitterEmail}, ${ip},
       ${score}, ${review || null}, 'pending'
     )
   `;
+
+  void notifyAdminOfPending({
+    kind: 'rating',
+    summary: `${'★'.repeat(score)} for ${target} ${targetKey}${submitterName ? ` from ${submitterName}` : ''}`,
+    detail: review || null,
+    submitterEmail,
+  });
 
   return NextResponse.json({ ok: true, status: 'pending', target });
 }

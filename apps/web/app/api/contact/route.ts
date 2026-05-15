@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { isSafeHttpUrl } from '@/lib/url';
+import { notifyAdminOfPending } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -55,19 +56,28 @@ export async function POST(request: Request) {
     request.headers.get('x-real-ip') ||
     null;
 
+  const name = body.name?.trim().slice(0, 120) ?? null;
+  const org = body.organization?.trim().slice(0, 200) ?? null;
   await sql`
     INSERT INTO contact_submissions (
       name, email, organization, message, event_url, ip_address, status
     ) VALUES (
-      ${body.name?.trim().slice(0, 120) ?? null},
+      ${name},
       ${email},
-      ${body.organization?.trim().slice(0, 200) ?? null},
+      ${org},
       ${message},
       ${eventUrl},
       ${ip},
       'new'
     )
   `;
+
+  void notifyAdminOfPending({
+    kind: 'contact',
+    summary: org ? `Event submission from "${org}"` : 'Event submission via contact form',
+    detail: message,
+    submitterEmail: email,
+  });
 
   return NextResponse.json({ ok: true });
 }

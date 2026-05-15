@@ -3,6 +3,7 @@ import { db, organizerClaims, urlSubmissions } from '@proactivity/db';
 import { and, desc, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { isSafeHttpUrl } from '@/lib/url';
+import { notifyAdminOfPending } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -63,6 +64,13 @@ export async function POST(request: Request) {
     .insert(urlSubmissions)
     .values({ userId: user.id, organizerKey, url: urlRaw, note, status: 'pending' })
     .returning({ id: urlSubmissions.id });
+
+  void notifyAdminOfPending({
+    kind: 'url_submission',
+    summary: organizerKey ? `URL for ${organizerKey}: ${urlRaw}` : `URL: ${urlRaw}`,
+    detail: note,
+    submitterEmail: user.email,
+  });
 
   return NextResponse.json({ ok: true, id: row!.id });
 }

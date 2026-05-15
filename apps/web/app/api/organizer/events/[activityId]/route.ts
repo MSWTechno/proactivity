@@ -3,6 +3,7 @@ import { db, eventDrafts, organizerClaims, sql } from '@proactivity/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { isSafeHttpUrl } from '@/lib/url';
+import { notifyAdminOfPending } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -291,6 +292,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ activityI
       status: 'pending',
     })
     .returning({ id: eventDrafts.id });
+
+  void notifyAdminOfPending({
+    kind: 'event_draft',
+    summary: `Edit to "${title}" by ${body.organizerName?.trim() || orgKey}`,
+    detail: body.description?.trim() ?? null,
+    submitterEmail: user.email,
+  });
 
   return NextResponse.json({ ok: true, id: row!.id });
 }

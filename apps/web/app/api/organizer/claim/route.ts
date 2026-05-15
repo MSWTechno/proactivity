@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, organizerClaims, sql } from '@proactivity/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
+import { notifyAdminOfPending } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -45,6 +46,14 @@ export async function POST(request: Request) {
         status: 'pending',
       })
       .returning({ id: organizerClaims.id });
+
+    void notifyAdminOfPending({
+      kind: 'claim',
+      summary: `Claim for "${organizerName ?? key}"`,
+      detail: note,
+      submitterEmail: user.email,
+    });
+
     return NextResponse.json({ ok: true, id: row!.id });
   } catch (e) {
     // Unique violation on (user, organizer_key)

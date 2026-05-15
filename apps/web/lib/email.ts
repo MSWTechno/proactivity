@@ -115,6 +115,49 @@ export async function notifyDraftResolved(params: {
   await send({ to, subject, html: shell(subject, body), text });
 }
 
+/**
+ * Email the admin (recipients in ADMIN_NOTIFICATION_EMAIL, comma-separated;
+ * falls back to ADMIN_EMAILS) whenever a new pending item lands in any
+ * moderation queue. No-ops if neither env var is set.
+ */
+export async function notifyAdminOfPending(params: {
+  kind: 'claim' | 'event_draft' | 'url_submission' | 'contact' | 'rating';
+  summary: string;
+  detail?: string | null;
+  submitterEmail?: string | null;
+}): Promise<void> {
+  const raw = process.env.ADMIN_NOTIFICATION_EMAIL ?? process.env.ADMIN_EMAILS ?? '';
+  const recipients = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (recipients.length === 0) return;
+  const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';
+  const queueUrl = `${base}/admin/moderate`;
+  const kindLabel = {
+    claim: 'Organizer claim',
+    event_draft: 'Event draft',
+    url_submission: 'URL submission',
+    contact: 'New event submission',
+    rating: 'Rating',
+  }[params.kind];
+  const subject = `[Proactivity] ${kindLabel} needs review`;
+  const submitter = params.submitterEmail ? `<p style="margin: 8px 0; font-size: 13px; color: #666;">From: ${esc(params.submitterEmail)}</p>` : '';
+  const detail = params.detail ? `<p style="margin: 8px 0; color: #444;">${esc(params.detail)}</p>` : '';
+  const html = `
+    <div style="font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #222;">
+      <h1 style="font-size: 18px; margin: 0 0 12px;">${esc(kindLabel)} pending</h1>
+      <p style="margin: 0 0 4px;">${esc(params.summary)}</p>
+      ${detail}
+      ${submitter}
+      <p style="margin: 20px 0 0;">
+        <a href="${queueUrl}" style="display: inline-block; padding: 10px 18px; background: #6d28d9; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+          Open moderation queue
+        </a>
+      </p>
+    </div>
+  `;
+  const text = `${kindLabel} pending: ${params.summary}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nFrom: ${params.submitterEmail}` : ''}\n\n${queueUrl}`;
+  await send({ to: recipients.join(','), subject, html, text });
+}
+
 export async function notifyUrlSubmissionResolved(params: {
   to: string;
   url: string;
