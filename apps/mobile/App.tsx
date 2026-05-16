@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  authFetch,
   clearSession,
   exchangeMagicLink,
   loadStoredSession,
@@ -12,6 +13,9 @@ import {
   type MeUser,
 } from './lib/auth';
 import { OrganizerScreen } from './screens/Organizer';
+import { AdSlot } from './AdSlot';
+
+const AD_EVERY_N_CARDS = 6;
 import {
   ActivityIndicator,
   Image,
@@ -97,6 +101,33 @@ export default function App() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [organizerOpen, setOrganizerOpen] = useState(false);
+  const [noAds, setNoAds] = useState(false);
+
+  // Initialize AdMob once on mount. The lib gracefully handles re-init.
+  // In Expo Go the native module is unavailable — the call may throw but
+  // is caught here so the app continues to function (just without ads).
+  useEffect(() => {
+    (async () => {
+      try {
+        const mod = await import('react-native-google-mobile-ads');
+        await mod.default().initialize();
+      } catch {
+        /* SDK unavailable (Expo Go or first-run before prebuild) */
+      }
+    })();
+  }, []);
+
+  // When signed in, fetch /api/auth/me to learn whether the user has the
+  // noAds (Plus) subscription. Refreshes on sign-in/out transitions.
+  useEffect(() => {
+    if (!me) { setNoAds(false); return; }
+    authFetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : { subscription: null }))
+      .then((d: { subscription?: { noAds: boolean } | null }) => {
+        setNoAds(d.subscription?.noAds === true);
+      })
+      .catch(() => { /* keep default */ });
+  }, [me]);
 
   // Load any persisted session at mount.
   useEffect(() => {
@@ -270,7 +301,23 @@ export default function App() {
     setRefreshing(false);
   }, [fetchActivities]);
 
-  const groupedSections = useMemo(() => groupByDay(items ?? []), [items]);
+  const groupedSections = useMemo(() => {
+    const sections = groupByDay(items ?? []);
+    if (noAds) return sections as { title: string; data: (Activity | { __ad: true; key: string })[] }[];
+    // Interleave in-feed ad markers every AD_EVERY_N_CARDS across day boundaries.
+    let counter = 0;
+    return sections.map(({ title, data }) => {
+      const out: (Activity | { __ad: true; key: string })[] = [];
+      for (const a of data) {
+        out.push(a);
+        counter++;
+        if (counter % AD_EVERY_N_CARDS === 0) {
+          out.push({ __ad: true, key: `ad-${counter}` });
+        }
+      }
+      return { title, data: out };
+    });
+  }, [items, noAds]);
 
   const toggleCategory = useCallback((key: CategoryKey) => {
     setActiveCategories((prev) => {
@@ -485,10 +532,12 @@ export default function App() {
       ) : (
         <SectionList
           sections={groupedSections}
-          keyExtractor={(a) => a.id}
-          renderItem={({ item }) => (
-            <ActivityRow activity={item} t={t} onRate={() => setRatingTarget(item)} />
-          )}
+          keyExtractor={(item) => ('__ad' in item ? item.key : item.id)}
+          renderItem={({ item }) => {
+            if ('__ad' in item) return <AdSlot kind="infeed" hidden={noAds} />;
+            return <ActivityRow activity={item} t={t} onRate={() => setRatingTarget(item)} />;
+          }}
+          ListHeaderComponent={() => <AdSlot kind="banner" hidden={noAds} />}
           renderSectionHeader={({ section: { title } }) => (
             <Text style={[styles.dayHeading, { color: t.fg, backgroundColor: t.bg }]}>{title}</Text>
           )}

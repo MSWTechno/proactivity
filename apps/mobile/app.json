@@ -20,10 +20,21 @@
         {
           "locationWhenInUsePermission": "Allow Proactivity to use your location to show nearby events."
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
       ]
     ],
     "extra": {
-      "apiBaseUrl": "https://proactivity-web.vercel.app"
+      "apiBaseUrl": "https://proactivity-web.vercel.app",
+      "adMobBannerUnitIdAndroid": "",
+      "adMobBannerUnitIdIos": "",
+      "adMobInFeedUnitIdAndroid": "",
+      "adMobInFeedUnitIdIos": ""
     }
   }
 }
