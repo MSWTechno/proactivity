@@ -43,6 +43,12 @@
         "projectId": "e52b81d3-d059-4f0d-83c4-f9d4abab51de"
       }
     },
-    "owner": "mswtechnologies"
+    "owner": "mswtechnologies",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e52b81d3-d059-4f0d-83c4-f9d4abab51de"
+    }
   }
 }

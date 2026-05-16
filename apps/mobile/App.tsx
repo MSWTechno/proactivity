@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
+import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -113,6 +114,24 @@ export default function App() {
         await mod.default().initialize();
       } catch {
         /* SDK unavailable (Expo Go or first-run before prebuild) */
+      }
+    })();
+  }, []);
+
+  // Check for an OTA update on cold start. Silent: if one is available we
+  // fetch + reload immediately so the user lands on the new bundle. Skipped
+  // in dev/Expo Go where Updates.isEnabled is false.
+  useEffect(() => {
+    if (__DEV__ || !Updates.isEnabled) return;
+    (async () => {
+      try {
+        const u = await Updates.checkForUpdateAsync();
+        if (u.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch {
+        /* offline or update server unreachable — continue with current bundle */
       }
     })();
   }, []);
