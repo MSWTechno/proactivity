@@ -19,6 +19,7 @@ import { AdSlot } from './AdSlot';
 const AD_EVERY_N_CARDS = 6;
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Linking,
   Platform,
@@ -118,12 +119,17 @@ export default function App() {
     })();
   }, []);
 
-  // Check for an OTA update on cold start. Silent: if one is available we
-  // fetch + reload immediately so the user lands on the new bundle. Skipped
-  // in dev/Expo Go where Updates.isEnabled is false.
+  // Check for an OTA update on cold start and on each foreground resume.
+  // Silent: if one is available we fetch + reload immediately so the user
+  // lands on the new bundle. Skipped in dev/Expo Go where Updates.isEnabled
+  // is false. A single in-flight guard prevents overlapping checks if the
+  // user backgrounds/foregrounds rapidly.
   useEffect(() => {
     if (__DEV__ || !Updates.isEnabled) return;
-    (async () => {
+    let checking = false;
+    const check = async () => {
+      if (checking) return;
+      checking = true;
       try {
         const u = await Updates.checkForUpdateAsync();
         if (u.isAvailable) {
@@ -132,8 +138,15 @@ export default function App() {
         }
       } catch {
         /* offline or update server unreachable — continue with current bundle */
+      } finally {
+        checking = false;
       }
-    })();
+    };
+    check();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') check();
+    });
+    return () => sub.remove();
   }, []);
 
   // When signed in, fetch /api/auth/me to learn whether the user has the
