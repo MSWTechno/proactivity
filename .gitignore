@@ -22,3 +22,10 @@ coverage/
 
 # Next.js auto-generated type file
 next-env.d.ts
+
+# EAS / store credentials — never commit
+google-service-account.json
+*.p8
+*.p12
+*.keystore
+credentials.json
