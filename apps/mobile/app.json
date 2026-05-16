@@ -12,7 +12,11 @@
       "bundleIdentifier": "com.mswtechno.proactivity"
     },
     "android": {
-      "package": "com.mswtechno.proactivity"
+      "package": "com.mswtechno.proactivity",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       [
@@ -34,7 +38,11 @@
       "adMobBannerUnitIdAndroid": "",
       "adMobBannerUnitIdIos": "",
       "adMobInFeedUnitIdAndroid": "",
-      "adMobInFeedUnitIdIos": ""
-    }
+      "adMobInFeedUnitIdIos": "",
+      "eas": {
+        "projectId": "e52b81d3-d059-4f0d-83c4-f9d4abab51de"
+      }
+    },
+    "owner": "mswtechnologies"
   }
 }
