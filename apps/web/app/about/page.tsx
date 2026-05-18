@@ -98,6 +98,13 @@ export default function AboutPage() {
       <p>
         Questions, partnership ideas, or just want to say what you'd like to see? <Link href="/contact">Send us a message</Link>.
       </p>
+
+      <p className="disclaimer" style={{ marginTop: 32 }}>
+        Powered by{' '}
+        <a href="https://msw-technologies.com" target="_blank" rel="noopener noreferrer">
+          MSW Technologies
+        </a>
+      </p>
     </main>
   );
 }

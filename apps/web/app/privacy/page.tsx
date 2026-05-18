@@ -153,6 +153,13 @@ export default function PrivacyPage() {
       <p>
         Questions, requests, or complaints? <Link href="/contact">Send us a message</Link>.
       </p>
+
+      <p className="disclaimer" style={{ marginTop: 32 }}>
+        Powered by{' '}
+        <a href="https://msw-technologies.com" target="_blank" rel="noopener noreferrer">
+          MSW Technologies
+        </a>
+      </p>
     </main>
   );
 }

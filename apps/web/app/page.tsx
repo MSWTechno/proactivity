@@ -424,6 +424,17 @@ export default function HomePage() {
         {' · '}
         <a href="/privacy" style={{ color: 'var(--fg-muted)' }}>Privacy policy</a>
       </p>
+      <p className="disclaimer" style={{ marginTop: 4 }}>
+        Powered by{' '}
+        <a
+          href="https://msw-technologies.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'var(--fg-muted)' }}
+        >
+          MSW Technologies
+        </a>
+      </p>
 
       {showOnboarding && (
         <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
