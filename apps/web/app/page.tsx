@@ -418,6 +418,10 @@ export default function HomePage() {
         Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
       </p>
       <p className="disclaimer" style={{ marginTop: 8 }}>
+        <a href="/about" style={{ color: 'var(--fg-muted)' }}>About</a>
+        {' · '}
+        <a href="/contact" style={{ color: 'var(--fg-muted)' }}>Contact</a>
+        {' · '}
         <a href="/privacy" style={{ color: 'var(--fg-muted)' }}>Privacy policy</a>
       </p>
 

@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     organization?: string;
     message?: string;
     eventUrl?: string;
+    kind?: 'event' | 'general';
   };
   try {
     body = await request.json();
@@ -72,9 +73,13 @@ export async function POST(request: Request) {
     )
   `;
 
+  const isGeneral = body.kind === 'general';
+  const summary = isGeneral
+    ? (org ? `General inquiry from "${org}"` : 'General inquiry via contact form')
+    : (org ? `Event submission from "${org}"` : 'Event submission via contact form');
   void notifyAdminOfPending({
     kind: 'contact',
-    summary: org ? `Event submission from "${org}"` : 'Event submission via contact form',
+    summary,
     detail: message,
     submitterEmail: email,
   });

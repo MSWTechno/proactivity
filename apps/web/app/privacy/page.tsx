@@ -7,8 +7,7 @@ export const metadata: Metadata = {
   description: 'How Proactivity handles your data.',
 };
 
-const EFFECTIVE_DATE = 'May 15, 2026';
-const CONTACT_EMAIL = 'privacy@proactivity.app';
+const EFFECTIVE_DATE = 'May 18, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -31,13 +30,13 @@ export default function PrivacyPage() {
           <li>We collect as little as possible. Your email if you sign in. Your location, in real time, if you let us — we don't keep it.</li>
           <li>We don't sell your data and we don't use third-party analytics or tracking pixels.</li>
           <li>We show ads from Google AdSense on the website and Google AdMob in the mobile app. Both use Google's privacy controls; the EU/UK/Switzerland consent banner is shown where required. The mobile app requests <em>non-personalized</em> ads by default, so no advertising-ID tracking happens unless we add explicit opt-in.</li>
-          <li>You can ask us to delete your account or your data any time at <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</li>
+          <li>You can ask us to delete your account or your data any time via our <Link href="/contact">contact form</Link>.</li>
         </ul>
       </section>
 
       <h2>1. Who we are</h2>
       <p>
-        Proactivity is an events aggregator that helps people find things to do nearby in the next week or two. "Proactivity," "we," and "us" refer to the operator of the proactivity.app website and the Proactivity mobile app. If you have a question about this policy, email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+        Proactivity is an events aggregator that helps people find things to do nearby in the next week or two. "Proactivity," "we," and "us" refer to the operator of the proactivity.app website and the Proactivity mobile app. If you have a question about this policy, send us a message via our <Link href="/contact">contact form</Link>.
       </p>
 
       <h2>2. What we collect, and why</h2>
@@ -60,10 +59,10 @@ export default function PrivacyPage() {
 
       <h3>What we don't collect</h3>
       <ul>
-        <li>No third-party analytics (no Google Analytics, no Mixpanel, no Segment, etc.).</li>
         <li>No advertising IDs from your mobile device. AdMob serves non-personalized ads by default, so the IDFA prompt on iOS is not shown.</li>
         <li>No social-media tracking pixels.</li>
         <li>No fingerprinting or cross-site tracking on our own behalf.</li>
+        <li>Aside from Google Analytics (described below) we don't run other third-party analytics — no Mixpanel, no Segment, no Heap, etc.</li>
       </ul>
 
       <h2>3. How we use what we collect</h2>
@@ -86,6 +85,7 @@ export default function PrivacyPage() {
         <li><strong>Neon</strong> (database). Stores the records described above. <a href="https://neon.com/privacy-policy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
         <li><strong>Resend</strong> (email delivery). Sends sign-in and notification emails. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
         <li><strong>Stripe</strong> (payments). Handles all card data for Plus subscriptions. <a href="https://stripe.com/privacy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
+        <li><strong>Google Analytics</strong> (website). Aggregates anonymized traffic data (page views, referrers, approximate country/region) so we can understand which features are useful. Sets the <code>_ga</code> family of cookies. We do not configure Google Analytics to receive your email, name, or other identifying information. <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
         <li><strong>Google AdSense</strong> (advertising, website). Loads ads on the website and may set cookies for ad personalization. Subject to Google's consent banner in the EU/UK/Switzerland. <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
         <li><strong>Google AdMob</strong> (advertising, mobile app). The mobile-app counterpart to AdSense. We request <strong>non-personalized ads only</strong> by default, which means we don't ask the OS for your advertising identifier (IDFA on iOS) and AdMob shows contextual ads rather than ads targeted to your activity. <a href="https://support.google.com/admob/answer/6128543" target="_blank" rel="noreferrer">AdMob's data disclosure</a>.</li>
         <li><strong>Google OAuth</strong> (admin sign-in only). Used only by Proactivity administrators to sign in to the moderation tools — not by regular users.</li>
@@ -99,11 +99,12 @@ export default function PrivacyPage() {
         <li><code>proactivity_admin</code> — same purpose but for administrators only.</li>
         <li><strong>Local storage</strong> — stores your onboarding choice, preferred event categories, and (on mobile) your session token. This data never leaves your device unless you sync it via a backup.</li>
         <li><strong>AdSense cookies</strong> — set by Google for ad delivery and (with your consent) ad personalization. Managed by Google's consent banner where required.</li>
+        <li><strong>Google Analytics cookies</strong> (<code>_ga</code>, <code>_ga_*</code>) — used to distinguish unique sessions and aggregate traffic. Subject to the same consent flow Google applies in the EU/UK/Switzerland.</li>
       </ul>
       <p>The mobile app does not use the AdSense web SDK. It does load Google AdMob (described above) to serve banner ads, which may set or read local advertising data. It stores the same kind of preference data as the website (session, interests, onboarding state) in the OS's app storage.</p>
 
       <h2>6. Your rights</h2>
-      <p>Wherever you live, you can email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> to:</p>
+      <p>Wherever you live, you can <Link href="/contact">contact us</Link> to:</p>
       <ul>
         <li>See what data we have about you.</li>
         <li>Correct it.</li>
@@ -150,7 +151,7 @@ export default function PrivacyPage() {
 
       <h2>12. Contact</h2>
       <p>
-        Questions, requests, or complaints? Email <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+        Questions, requests, or complaints? <Link href="/contact">Send us a message</Link>.
       </p>
     </main>
   );
