@@ -128,38 +128,50 @@ export async function notifyAdminOfPending(params: {
 }): Promise<void> {
   const raw = process.env.ADMIN_NOTIFICATION_EMAIL ?? process.env.ADMIN_EMAILS ?? '';
   const recipients = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  console.log(`[email] notifyAdminOfPending kind=${params.kind} recipients=${recipients.length} adminEnvLen=${(process.env.ADMIN_NOTIFICATION_EMAIL ?? '').length} fallbackEnvLen=${(process.env.ADMIN_EMAILS ?? '').length}`);
-  if (recipients.length === 0) {
-    console.warn('[email] notifyAdminOfPending skipped — no recipients (both env vars empty)');
-    return;
-  }
+  if (recipients.length === 0) return;
   const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';
   const queueUrl = `${base}/admin/moderate`;
+  const isGeneralContact = params.kind === 'contact_general';
   const kindLabel = {
     claim: 'Organizer claim',
     event_draft: 'Event draft',
     url_submission: 'URL submission',
     contact: 'New event submission',
-    contact_general: 'General inquiry',
+    contact_general: 'Contact form message',
     rating: 'Rating',
   }[params.kind];
-  const subject = `[Proactivity] ${kindLabel} needs review`;
+  const subject = isGeneralContact
+    ? `[Proactivity] Contact form: ${params.summary}`
+    : `[Proactivity] ${kindLabel} needs review`;
   const submitter = params.submitterEmail ? `<p style="margin: 8px 0; font-size: 13px; color: #666;">From: ${esc(params.submitterEmail)}</p>` : '';
-  const detail = params.detail ? `<p style="margin: 8px 0; color: #444;">${esc(params.detail)}</p>` : '';
+  const detail = params.detail ? `<p style="margin: 8px 0; color: #444; white-space: pre-wrap;">${esc(params.detail)}</p>` : '';
+
+  // Contact-form messages get a "Reply to sender" mailto CTA. Moderation
+  // queue items get an "Open moderation queue" CTA pointing at /admin/moderate.
+  const ctaHref = isGeneralContact && params.submitterEmail
+    ? `mailto:${params.submitterEmail}`
+    : queueUrl;
+  const ctaLabel = isGeneralContact
+    ? (params.submitterEmail ? `Reply to ${params.submitterEmail}` : 'View site')
+    : 'Open moderation queue';
+  const heading = isGeneralContact ? 'New message via contact form' : `${esc(kindLabel)} pending`;
+
   const html = `
     <div style="font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #222;">
-      <h1 style="font-size: 18px; margin: 0 0 12px;">${esc(kindLabel)} pending</h1>
-      <p style="margin: 0 0 4px;">${esc(params.summary)}</p>
+      <h1 style="font-size: 18px; margin: 0 0 12px;">${heading}</h1>
+      ${isGeneralContact ? '' : `<p style="margin: 0 0 4px;">${esc(params.summary)}</p>`}
       ${detail}
       ${submitter}
       <p style="margin: 20px 0 0;">
-        <a href="${queueUrl}" style="display: inline-block; padding: 10px 18px; background: #6d28d9; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
-          Open moderation queue
+        <a href="${ctaHref}" style="display: inline-block; padding: 10px 18px; background: #6d28d9; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">
+          ${esc(ctaLabel)}
         </a>
       </p>
     </div>
   `;
-  const text = `${kindLabel} pending: ${params.summary}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nFrom: ${params.submitterEmail}` : ''}\n\n${queueUrl}`;
+  const text = isGeneralContact
+    ? `New message via contact form${params.submitterEmail ? ` from ${params.submitterEmail}` : ''}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nReply: mailto:${params.submitterEmail}` : ''}`
+    : `${kindLabel} pending: ${params.summary}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nFrom: ${params.submitterEmail}` : ''}\n\n${queueUrl}`;
   await send({ to: recipients.join(','), subject, html, text });
 }
 
