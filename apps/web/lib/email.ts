@@ -156,6 +156,17 @@ export async function notifyAdminOfPending(params: {
     : 'Open moderation queue';
   const heading = isGeneralContact ? 'New message via contact form' : `${esc(kindLabel)} pending`;
 
+  // Optional reminder shown on contact-form notifications so the admin
+  // remembers to switch their Gmail "From" to the public alias. Set
+  // REPLY_FROM_ADDRESS in env (e.g. "hello@proactivity.app") to enable.
+  const replyFromAlias = process.env.REPLY_FROM_ADDRESS?.trim() || null;
+  const replyReminderHtml = isGeneralContact && replyFromAlias && params.submitterEmail
+    ? `<p style="margin: 16px 0 0; font-size: 12px; color: #888;">Tip: reply <strong>from ${esc(replyFromAlias)}</strong> (switch the From dropdown in Gmail) so your personal address stays private.</p>`
+    : '';
+  const replyReminderText = isGeneralContact && replyFromAlias && params.submitterEmail
+    ? `\n\nTip: reply from ${replyFromAlias} (switch the From dropdown in Gmail) so your personal address stays private.`
+    : '';
+
   const html = `
     <div style="font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #222;">
       <h1 style="font-size: 18px; margin: 0 0 12px;">${heading}</h1>
@@ -167,10 +178,11 @@ export async function notifyAdminOfPending(params: {
           ${esc(ctaLabel)}
         </a>
       </p>
+      ${replyReminderHtml}
     </div>
   `;
   const text = isGeneralContact
-    ? `New message via contact form${params.submitterEmail ? ` from ${params.submitterEmail}` : ''}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nReply: mailto:${params.submitterEmail}` : ''}`
+    ? `New message via contact form${params.submitterEmail ? ` from ${params.submitterEmail}` : ''}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nReply: mailto:${params.submitterEmail}` : ''}${replyReminderText}`
     : `${kindLabel} pending: ${params.summary}${params.detail ? `\n\n${params.detail}` : ''}${params.submitterEmail ? `\n\nFrom: ${params.submitterEmail}` : ''}\n\n${queueUrl}`;
   await send({ to: recipients.join(','), subject, html, text });
 }
