@@ -59,6 +59,10 @@ export async function POST(request: Request) {
 
   const name = body.name?.trim().slice(0, 120) ?? null;
   const org = body.organization?.trim().slice(0, 200) ?? null;
+  const isGeneral = body.kind === 'general';
+  // General inquiries don't need admin moderation — the email IS the workflow.
+  // Insert as 'replied' so they're preserved for audit but skip the queue.
+  const status = isGeneral ? 'replied' : 'new';
   await sql`
     INSERT INTO contact_submissions (
       name, email, organization, message, event_url, ip_address, status
@@ -69,11 +73,10 @@ export async function POST(request: Request) {
       ${message},
       ${eventUrl},
       ${ip},
-      'new'
+      ${status}
     )
   `;
 
-  const isGeneral = body.kind === 'general';
   const summary = isGeneral
     ? (org ? `General inquiry from "${org}"` : 'General inquiry via contact form')
     : (org ? `Event submission from "${org}"` : 'Event submission via contact form');
