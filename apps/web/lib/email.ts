@@ -128,7 +128,11 @@ export async function notifyAdminOfPending(params: {
 }): Promise<void> {
   const raw = process.env.ADMIN_NOTIFICATION_EMAIL ?? process.env.ADMIN_EMAILS ?? '';
   const recipients = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  if (recipients.length === 0) return;
+  console.log(`[email] notifyAdminOfPending kind=${params.kind} recipients=${recipients.length} adminEnvLen=${(process.env.ADMIN_NOTIFICATION_EMAIL ?? '').length} fallbackEnvLen=${(process.env.ADMIN_EMAILS ?? '').length}`);
+  if (recipients.length === 0) {
+    console.warn('[email] notifyAdminOfPending skipped — no recipients (both env vars empty)');
+    return;
+  }
   const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? '';
   const queueUrl = `${base}/admin/moderate`;
   const kindLabel = {
