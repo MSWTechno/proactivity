@@ -121,7 +121,7 @@ export async function notifyDraftResolved(params: {
  * moderation queue. No-ops if neither env var is set.
  */
 export async function notifyAdminOfPending(params: {
-  kind: 'claim' | 'event_draft' | 'url_submission' | 'contact' | 'rating';
+  kind: 'claim' | 'event_draft' | 'url_submission' | 'contact' | 'contact_general' | 'rating';
   summary: string;
   detail?: string | null;
   submitterEmail?: string | null;
@@ -136,6 +136,7 @@ export async function notifyAdminOfPending(params: {
     event_draft: 'Event draft',
     url_submission: 'URL submission',
     contact: 'New event submission',
+    contact_general: 'General inquiry',
     rating: 'Rating',
   }[params.kind];
   const subject = `[Proactivity] ${kindLabel} needs review`;

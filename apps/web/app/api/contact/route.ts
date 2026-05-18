@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     ? (org ? `General inquiry from "${org}"` : 'General inquiry via contact form')
     : (org ? `Event submission from "${org}"` : 'Event submission via contact form');
   void notifyAdminOfPending({
-    kind: 'contact',
+    kind: isGeneral ? 'contact_general' : 'contact',
     summary,
     detail: message,
     submitterEmail: email,
