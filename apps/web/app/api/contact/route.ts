@@ -80,7 +80,10 @@ export async function POST(request: Request) {
   const summary = isGeneral
     ? (org ? `General inquiry from "${org}"` : 'General inquiry via contact form')
     : (org ? `Event submission from "${org}"` : 'Event submission via contact form');
-  void notifyAdminOfPending({
+  // Awaited (not fire-and-forget): on Vercel serverless, pending promises
+  // can be killed when the function suspends after the response. ~200ms
+  // added to the response is fine for a contact form.
+  await notifyAdminOfPending({
     kind: isGeneral ? 'contact_general' : 'contact',
     summary,
     detail: message,

@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     .values({ userId: user.id, organizerKey, url: urlRaw, note, status: 'pending' })
     .returning({ id: urlSubmissions.id });
 
-  void notifyAdminOfPending({
+  await notifyAdminOfPending({
     kind: 'url_submission',
     summary: organizerKey ? `URL for ${organizerKey}: ${urlRaw}` : `URL: ${urlRaw}`,
     detail: note,

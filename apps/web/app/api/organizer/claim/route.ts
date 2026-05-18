@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       })
       .returning({ id: organizerClaims.id });
 
-    void notifyAdminOfPending({
+    await notifyAdminOfPending({
       kind: 'claim',
       summary: `Claim for "${organizerName ?? key}"`,
       detail: note,

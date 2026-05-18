@@ -201,7 +201,7 @@ export async function POST(request: Request) {
   const recurrenceLabel = recurrenceFreq && recurrenceCount
     ? ` (repeats ${recurrenceFreq} × ${recurrenceCount})`
     : '';
-  void notifyAdminOfPending({
+  await notifyAdminOfPending({
     kind: 'event_draft',
     summary: `"${title}" by ${orgLabel}${recurrenceLabel}`,
     detail: body.description?.trim() ?? null,

@@ -293,7 +293,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ activityI
     })
     .returning({ id: eventDrafts.id });
 
-  void notifyAdminOfPending({
+  await notifyAdminOfPending({
     kind: 'event_draft',
     summary: `Edit to "${title}" by ${body.organizerName?.trim() || orgKey}`,
     detail: body.description?.trim() ?? null,

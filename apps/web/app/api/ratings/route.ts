@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     )
   `;
 
-  void notifyAdminOfPending({
+  await notifyAdminOfPending({
     kind: 'rating',
     summary: `${'★'.repeat(score)} for ${target} ${targetKey}${submitterName ? ` from ${submitterName}` : ''}`,
     detail: review || null,
