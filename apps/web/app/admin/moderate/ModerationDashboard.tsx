@@ -297,6 +297,7 @@ export default function ModerationDashboard() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Link href="/admin/moderate" className="admin-tab admin-tab-active">Moderation</Link>
           <Link href="/admin/events" className="admin-tab">Events</Link>
+          <Link href="/admin/organizations" className="admin-tab">Orgs</Link>
           <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
         </div>
       </header>
