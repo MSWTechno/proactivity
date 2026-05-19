@@ -88,6 +88,19 @@ function toLocalDateTimeInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * Convert a datetime-local string (no timezone, e.g. "2026-05-19T18:30")
+ * to an absolute UTC ISO string using the user's local timezone. Without
+ * this, the server (running in UTC on Vercel) misreads "2026-05-19T18:30"
+ * as 18:30 UTC instead of 18:30 in the submitter's local time, drifting
+ * the saved time by the offset on every save.
+ */
+function localDateTimeToIso(local: string): string {
+  if (!local) return '';
+  const d = new Date(local);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 export default function EditEventForm({ id }: { id: string }) {
   const router = useRouter();
   const [event, setEvent] = useState<EventRow | null>(null);
@@ -144,9 +157,19 @@ export default function EditEventForm({ id }: { id: string }) {
       const res = await fetch(`/api/admin/events/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...values, isVirtual }),
+        body: JSON.stringify({
+          ...values,
+          startAt: localDateTimeToIso(values.startAt ?? ''),
+          endAt: localDateTimeToIso(values.endAt ?? ''),
+          isVirtual,
+        }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      // Be defensive about JSON parsing: a 5xx with an empty/HTML body
+      // throws "Unexpected end of JSON input" otherwise.
+      const text = await res.text();
+      const data = text
+        ? (JSON.parse(text) as { ok?: boolean; error?: string })
+        : { error: `Empty response (HTTP ${res.status})` };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       router.push('/admin/events');
       router.refresh();

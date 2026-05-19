@@ -86,10 +86,15 @@ export default function AddEventForm({ initialValues, contactMeta }: AddEventFor
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...values,
+          startAt: localDateTimeToIso(values.startAt ?? ''),
+          endAt: localDateTimeToIso(values.endAt ?? ''),
           ...(contactMeta ? { contactId: contactMeta.id } : {}),
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
+      const text = await res.text();
+      const data = text
+        ? (JSON.parse(text) as { ok?: boolean; id?: string; error?: string })
+        : { error: `Empty response (HTTP ${res.status})` };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       router.push(exitHref);
       router.refresh();
@@ -99,6 +104,16 @@ export default function AddEventForm({ initialValues, contactMeta }: AddEventFor
       setSubmitting(false);
     }
   };
+
+  // Same conversion helper as EditEventForm — browser parses datetime-local
+  // as local time, .toISOString() returns the UTC equivalent. Without this,
+  // Vercel (UTC) misreads the string as UTC and the time drifts by the
+  // submitter's offset on every save.
+  function localDateTimeToIso(local: string): string {
+    if (!local) return '';
+    const d = new Date(local);
+    return isNaN(d.getTime()) ? '' : d.toISOString();
+  }
 
   return (
     <main className="admin-main">

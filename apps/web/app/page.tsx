@@ -545,6 +545,13 @@ interface ApprovedClaim {
   organizerName: string | null;
 }
 
+/** datetime-local (no TZ) → UTC ISO using the browser's local timezone. */
+function localDateTimeToIso(local: string): string {
+  if (!local) return '';
+  const d = new Date(local);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 function SubmitEventModal({
   me,
   onClose,
@@ -645,8 +652,10 @@ function SubmitEventModal({
           eventData: {
             title: title.trim(),
             description: description.trim() || undefined,
-            startAt: startAt.trim(),
-            endAt: endAt.trim() || undefined,
+            // Convert local datetime-local strings to UTC ISO so the
+            // server (UTC) doesn't misread them as UTC and drift the time.
+            startAt: localDateTimeToIso(startAt),
+            endAt: endAt.trim() ? localDateTimeToIso(endAt) : undefined,
             venueName: venueName.trim(),
             address: address.trim(),
             city: city.trim() || undefined,
@@ -876,9 +885,31 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
         </div>
       )}
       <div className="card-body">
-        <p className="card-title">{a.title}</p>
+        <p className="card-title">
+          {a.title}
+          {a.ratingCount > 0 && a.ratingAverage != null && (
+            <span
+              className="card-rating-inline"
+              title={`${a.ratingCount} rating${a.ratingCount === 1 ? '' : 's'}`}
+            >
+              ★ {a.ratingAverage.toFixed(1)}
+              <span className="rating-count"> ({a.ratingCount})</span>
+            </span>
+          )}
+        </p>
         {a.organizer?.name && (
-          <p className="card-organizer">{a.organizer.name}</p>
+          <p className="card-organizer">
+            {a.organizer.name}
+            {a.organizer.ratingCount > 0 && a.organizer.ratingAverage != null && (
+              <span
+                className="card-rating-inline card-rating-organizer"
+                title={`organizer · ${a.organizer.ratingCount} rating${a.organizer.ratingCount === 1 ? '' : 's'}`}
+              >
+                ★ {a.organizer.ratingAverage.toFixed(1)}
+                <span className="rating-count"> ({a.organizer.ratingCount})</span>
+              </span>
+            )}
+          </p>
         )}
         <p className="card-meta">
           <time dateTime={a.startAt}>{timeStr}</time>
@@ -898,16 +929,6 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
       <div className="card-right">
         <span className={`badge ${isAvailable ? '' : 'badge-soldout'}`}>{availabilityLabel(a.availability)}</span>
         {a.ageRange && <span className="badge badge-age">{a.ageRange.label}</span>}
-        {a.ratingCount > 0 && a.ratingAverage != null && (
-          <span className="rating-summary" title={`${a.ratingCount} rating${a.ratingCount === 1 ? '' : 's'}`}>
-            ★ {a.ratingAverage.toFixed(1)} <span className="rating-count">({a.ratingCount})</span>
-          </span>
-        )}
-        {a.organizer && a.organizer.ratingCount > 0 && a.organizer.ratingAverage != null && (
-          <span className="rating-summary rating-organizer" title={`organizer · ${a.organizer.ratingCount} rating${a.organizer.ratingCount === 1 ? '' : 's'}`}>
-            org ★ {a.organizer.ratingAverage.toFixed(1)} <span className="rating-count">({a.organizer.ratingCount})</span>
-          </span>
-        )}
         {price && <span className="price">{price}</span>}
         <button
           type="button"

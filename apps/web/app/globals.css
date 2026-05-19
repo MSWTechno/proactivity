@@ -354,6 +354,16 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.card-rating-inline {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--warning-fg);
+  white-space: nowrap;
+}
+.card-rating-organizer {
+  color: var(--accent, #8b5cf6);
+}
 .card-meta {
   color: var(--fg-muted);
   font-size: 13px;

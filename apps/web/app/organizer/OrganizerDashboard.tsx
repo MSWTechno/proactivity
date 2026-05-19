@@ -602,6 +602,18 @@ function toLocalDateTime(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * Inverse of toLocalDateTime: convert a datetime-local string (no
+ * timezone) to a UTC ISO string using the user's local timezone. Without
+ * this, the server (running in UTC on Vercel) misreads the string as
+ * UTC instead of local, drifting the saved time by the offset.
+ */
+function localDateTimeToIso(local: string): string {
+  if (!local) return '';
+  const d = new Date(local);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 function DraftForm({
   mode,
   organizerKey,
@@ -707,7 +719,12 @@ function DraftForm({
     }
     setSubmitting(true);
     try {
-      const payload = { ...values, organizerKey: selectedOrgKey };
+      const payload = {
+        ...values,
+        startAt: localDateTimeToIso(values.startAt),
+        endAt: localDateTimeToIso(values.endAt),
+        organizerKey: selectedOrgKey,
+      };
       const url = mode === 'edit' && activityId
         ? `/api/organizer/events/${activityId}`
         : '/api/organizer/events';
@@ -717,7 +734,10 @@ function DraftForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const text = await res.text();
+      const data = text
+        ? (JSON.parse(text) as { ok?: boolean; error?: string })
+        : { error: `Empty response (HTTP ${res.status})` };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       onSubmitted();
     } catch (e) {
