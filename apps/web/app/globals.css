@@ -364,6 +364,47 @@ main {
 .card-rating-organizer {
   color: var(--accent, #8b5cf6);
 }
+.card-rating-button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.card-rating-button:hover { text-decoration: underline; }
+
+.reviews-modal { max-width: 560px; }
+.reviews-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.review-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.review-row:last-child { border-bottom: none; }
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.review-stars {
+  color: var(--warning-fg);
+  letter-spacing: 1px;
+}
+.review-meta {
+  color: var(--fg-muted);
+}
+.review-body {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--fg);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
 .card-meta {
   color: var(--fg-muted);
   font-size: 13px;

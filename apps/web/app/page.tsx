@@ -68,6 +68,9 @@ export default function HomePage() {
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
+  // Single modal shows both event reviews and (if any) organizer reviews.
+  // Click on either star on a card opens this same modal for that activity.
+  const [reviewsTarget, setReviewsTarget] = useState<Activity | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [me, setMe] = useState<{ id: string; email: string; name: string | null } | null>(null);
   const [noAds, setNoAds] = useState(false);
@@ -384,7 +387,11 @@ export default function HomePage() {
                 const showAdAfter = cardIndex % AD_EVERY_N_CARDS === 0;
                 return (
                   <Fragment key={a.id}>
-                    <ActivityCard a={a} onRate={() => setRatingTarget(a)} />
+                    <ActivityCard
+                      a={a}
+                      onRate={() => setRatingTarget(a)}
+                      onViewReviews={() => setReviewsTarget(a)}
+                    />
                     {showAdAfter && (
                       <AdSlot slot={AD_SLOT_INFEED} hidden={noAds} format="fluid" />
                     )}
@@ -401,6 +408,13 @@ export default function HomePage() {
           activity={ratingTarget}
           me={me}
           onClose={() => setRatingTarget(null)}
+        />
+      )}
+
+      {reviewsTarget && (
+        <ReviewsModal
+          activity={reviewsTarget}
+          onClose={() => setReviewsTarget(null)}
         />
       )}
 
@@ -838,7 +852,20 @@ function SubmitEventModal({
   );
 }
 
-function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
+function ActivityCard({
+  a,
+  onRate,
+  onViewReviews,
+}: {
+  a: Activity;
+  onRate: () => void;
+  onViewReviews: () => void;
+}) {
+  const stopAndView = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onViewReviews();
+  };
   const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -888,26 +915,30 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
         <p className="card-title">
           {a.title}
           {a.ratingCount > 0 && a.ratingAverage != null && (
-            <span
-              className="card-rating-inline"
-              title={`${a.ratingCount} rating${a.ratingCount === 1 ? '' : 's'}`}
+            <button
+              type="button"
+              className="card-rating-inline card-rating-button"
+              title={`See all ${a.ratingCount} review${a.ratingCount === 1 ? '' : 's'}`}
+              onClick={stopAndView}
             >
               ★ {a.ratingAverage.toFixed(1)}
               <span className="rating-count"> ({a.ratingCount})</span>
-            </span>
+            </button>
           )}
         </p>
         {a.organizer?.name && (
           <p className="card-organizer">
             {a.organizer.name}
             {a.organizer.ratingCount > 0 && a.organizer.ratingAverage != null && (
-              <span
-                className="card-rating-inline card-rating-organizer"
-                title={`organizer · ${a.organizer.ratingCount} rating${a.organizer.ratingCount === 1 ? '' : 's'}`}
+              <button
+                type="button"
+                className="card-rating-inline card-rating-organizer card-rating-button"
+                title={`See all ${a.organizer.ratingCount} organizer review${a.organizer.ratingCount === 1 ? '' : 's'}`}
+                onClick={stopAndView}
               >
                 ★ {a.organizer.ratingAverage.toFixed(1)}
                 <span className="rating-count"> ({a.organizer.ratingCount})</span>
-              </span>
+              </button>
             )}
           </p>
         )}
@@ -943,6 +974,134 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
         </button>
       </div>
     </a>
+  );
+}
+
+interface ReviewRow {
+  id: string;
+  submitterName: string | null;
+  score: number;
+  review: string | null;
+  createdAt: string;
+}
+
+interface ReviewBundle {
+  average: number | null;
+  count: number;
+  ratings: ReviewRow[];
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function ReviewsModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
+  const [eventReviews, setEventReviews] = useState<ReviewBundle | null>(null);
+  const [orgReviews, setOrgReviews] = useState<ReviewBundle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const fetches: Promise<unknown>[] = [
+      fetch(`/api/activities/${activity.id}/ratings`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: ReviewBundle | null) => { if (!cancelled) setEventReviews(d); }),
+    ];
+    if (activity.organizer?.key) {
+      fetches.push(
+        fetch(`/api/organizers/${encodeURIComponent(activity.organizer.key)}/ratings`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: ReviewBundle | null) => { if (!cancelled) setOrgReviews(d); }),
+      );
+    }
+    Promise.all(fetches)
+      .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [activity.id, activity.organizer?.key]);
+
+  return (
+    <div className="onboarding-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="onboarding-card reviews-modal" onClick={(e) => e.stopPropagation()}>
+        <h2 className="onboarding-title" style={{ marginBottom: 4 }}>Reviews</h2>
+        <p className="onboarding-sub" style={{ marginBottom: 16 }}>{activity.title}</p>
+
+        {loading && <p className="onboarding-sub">Loading…</p>}
+        {error && <p className="rating-error">{error}</p>}
+
+        {!loading && eventReviews && (
+          <ReviewsSection
+            heading="This event"
+            bundle={eventReviews}
+            emptyText="No reviews for this event yet."
+          />
+        )}
+        {!loading && activity.organizer?.name && (
+          <ReviewsSection
+            heading={`Organizer · ${activity.organizer.name}`}
+            bundle={orgReviews}
+            emptyText="No reviews for this organizer yet."
+          />
+        )}
+
+        <button type="button" className="onboarding-skip" onClick={onClose} style={{ marginTop: 12 }}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReviewsSection({
+  heading,
+  bundle,
+  emptyText,
+}: {
+  heading: string;
+  bundle: ReviewBundle | null;
+  emptyText: string;
+}) {
+  return (
+    <section style={{ marginTop: 16 }}>
+      <div className="submit-event-section-label" style={{ marginTop: 0 }}>
+        {heading}
+        {bundle && bundle.count > 0 && bundle.average != null && (
+          <span style={{ marginLeft: 8, color: 'var(--warning-fg)', fontWeight: 500 }}>
+            ★ {bundle.average.toFixed(1)} ({bundle.count})
+          </span>
+        )}
+      </div>
+      {!bundle || bundle.count === 0 ? (
+        <p className="admin-empty" style={{ fontSize: 13 }}>{emptyText}</p>
+      ) : (
+        <ul className="reviews-list">
+          {bundle.ratings.map((r) => (
+            <li key={r.id} className="review-row">
+              <div className="review-head">
+                <span className="review-stars">{'★'.repeat(r.score)}<span style={{ opacity: 0.3 }}>{'★'.repeat(5 - r.score)}</span></span>
+                <span className="review-meta">
+                  {r.submitterName?.trim() || 'Anonymous'} · {formatRelative(r.createdAt)}
+                </span>
+              </div>
+              {r.review && <p className="review-body">{r.review}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
