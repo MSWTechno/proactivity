@@ -75,8 +75,6 @@ const FIELDS: Field[] = [
       { value: 'unknown', label: 'Unknown' },
     ],
   },
-  { name: 'lat', label: 'Latitude', inputMode: 'decimal' },
-  { name: 'lng', label: 'Longitude', inputMode: 'decimal' },
   { name: 'categories', label: 'Categories (comma-separated)' },
 ];
 
@@ -137,8 +135,6 @@ export default function EditEventForm({ id }: { id: string }) {
           ageMin: e.ageMin != null ? String(e.ageMin) : '',
           ageMax: e.ageMax != null ? String(e.ageMax) : '',
           availability: e.availability,
-          lat: e.lat != null ? String(e.lat) : '',
-          lng: e.lng != null ? String(e.lng) : '',
           categories: e.categories?.join(', ') ?? '',
         });
       })

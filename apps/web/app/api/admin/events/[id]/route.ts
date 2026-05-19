@@ -193,45 +193,58 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const locationExpr =
+  // Only include `location = ...` in the UPDATE when both coords were sent;
+  // otherwise omit the column entirely so the existing geometry is kept.
+  // (Previously this used a `location = ${sql\`location\`}` no-op nested
+  // fragment that was a source of postgres.js type confusion.)
+  const locationSet =
     lat != null && lng != null
-      ? sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`
-      : sql`location`; // keep existing
+      ? sql`location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326),`
+      : sql``;
 
   const availability =
     body.availability && /^(onsale|free|dropin|sold_out|cancelled|unknown)$/.test(body.availability)
       ? body.availability
       : 'onsale';
 
-  const result = (await sql`
-    UPDATE activities SET
-      title = ${title},
-      description = ${body.description?.trim() || null},
-      start_at = ${startAt},
-      end_at = ${endAt},
-      timezone = ${body.timezone?.trim() || 'America/New_York'},
-      venue_name = ${body.venueName?.trim() || null},
-      address = ${body.address?.trim() || null},
-      city = ${body.city?.trim() || null},
-      region = ${body.region?.trim() || null},
-      location = ${locationExpr},
-      age_min = ${intOrNull(body.ageMin)},
-      age_max = ${intOrNull(body.ageMax)},
-      cost_min_cents = ${dollarsToCents(body.costMin)},
-      cost_max_cents = ${dollarsToCents(body.costMax)},
-      currency = ${body.currency?.trim() || 'USD'},
-      availability = ${availability},
-      is_virtual = ${body.isVirtual === true},
-      organizer_name = ${body.organizerName?.trim() || null},
-      organizer_url = ${body.organizerUrl?.trim() || null},
-      url = ${body.url?.trim() || null},
-      image_url = ${body.imageUrl?.trim() || null},
-      categories = ${categoryList.length > 0 ? categoryList : null},
-      manual_override = true,
-      updated_at = now()
-    WHERE id = ${id}
-    RETURNING id
-  `) as unknown as { id: string }[];
+  let result: { id: string }[];
+  try {
+    result = (await sql`
+      UPDATE activities SET
+        title = ${title},
+        description = ${body.description?.trim() || null},
+        start_at = ${startAt},
+        end_at = ${endAt},
+        timezone = ${body.timezone?.trim() || 'America/New_York'},
+        venue_name = ${body.venueName?.trim() || null},
+        address = ${body.address?.trim() || null},
+        city = ${body.city?.trim() || null},
+        region = ${body.region?.trim() || null},
+        ${locationSet}
+        age_min = ${intOrNull(body.ageMin)},
+        age_max = ${intOrNull(body.ageMax)},
+        cost_min_cents = ${dollarsToCents(body.costMin)},
+        cost_max_cents = ${dollarsToCents(body.costMax)},
+        currency = ${body.currency?.trim() || 'USD'},
+        availability = ${availability},
+        is_virtual = ${body.isVirtual === true},
+        organizer_name = ${body.organizerName?.trim() || null},
+        organizer_url = ${body.organizerUrl?.trim() || null},
+        url = ${body.url?.trim() || null},
+        image_url = ${body.imageUrl?.trim() || null},
+        categories = ${categoryList.length > 0 ? categoryList : null},
+        manual_override = true,
+        updated_at = now()
+      WHERE id = ${id}
+      RETURNING id
+    `) as unknown as { id: string }[];
+  } catch (e) {
+    // Without this, an unhandled throw becomes an opaque HTML 500 from
+    // Next, and the client surfaces it as "Unexpected end of JSON input".
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[admin/events PATCH] update failed:', msg);
+    return NextResponse.json({ error: `update failed: ${msg}` }, { status: 500 });
+  }
 
   if (result.length === 0) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
