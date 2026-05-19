@@ -47,6 +47,7 @@ interface SubmissionEventData {
   ageMin?: number | null;
   ageMax?: number | null;
   categories?: string | null;
+  claimedOrganizerKey?: string | null;
 }
 interface PendingClaim {
   id: string;
@@ -509,9 +510,13 @@ export default function ModerationDashboard() {
               {s.organization && (
                 <p className="admin-card-context">
                   <strong>{s.organization}</strong>
-                  {s.wantsOrgClaim && (
+                  {s.eventData?.claimedOrganizerKey ? (
+                    <span className="admin-tag" style={{ marginLeft: 8, background: 'var(--success-bg, #e0f5e9)', color: 'var(--success-fg, #1f7a3f)' }}>
+                      verified organizer
+                    </span>
+                  ) : s.wantsOrgClaim ? (
                     <span className="admin-tag" style={{ marginLeft: 8 }}>claim requested</span>
-                  )}
+                  ) : null}
                 </p>
               )}
               {s.eventData ? (

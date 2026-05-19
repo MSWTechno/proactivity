@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@proactivity/db';
+import { db, sql, organizerClaims } from '@proactivity/db';
+import { and, eq } from 'drizzle-orm';
 import { isSafeHttpUrl } from '@/lib/url';
 import { notifyAdminOfPending } from '@/lib/email';
 import { extractOgImage } from '@/lib/og-image';
+import { getCurrentUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -60,6 +62,39 @@ export async function POST(request: Request) {
   }
 
   const isGeneral = body.kind === 'general';
+
+  let wantsOrgClaim = !isGeneral && body.wantsOrgClaim === true;
+
+  // If the submitter is signed in and picked one of their approved orgs
+  // from the dropdown, validate they really own the claim and stash the
+  // key in event_data so "Add as event" can use it as the new activity's
+  // organizer_key (no claim queue required). Silently ignore the field
+  // on auth or ownership failure — never block the submission.
+  let claimedOrganizerKey: string | null = null;
+  if (!isGeneral && body.claimedOrganizerKey && typeof body.claimedOrganizerKey === 'string') {
+    const requestedKey = body.claimedOrganizerKey.trim();
+    if (requestedKey && requestedKey.length <= 200) {
+      const user = await getCurrentUser();
+      if (user) {
+        const ownsClaim = await db
+          .select({ id: organizerClaims.id })
+          .from(organizerClaims)
+          .where(
+            and(
+              eq(organizerClaims.userId, user.id),
+              eq(organizerClaims.organizerKey, requestedKey),
+              eq(organizerClaims.status, 'approved'),
+            ),
+          )
+          .limit(1);
+        if (ownsClaim.length > 0) {
+          claimedOrganizerKey = requestedKey;
+          // They already own the claim — don't queue a duplicate.
+          wantsOrgClaim = false;
+        }
+      }
+    }
+  }
 
   // Validate structured event_data if present. Required fields when present:
   // title, startAt, eventUrl (the public submit form mandates these so
@@ -127,10 +162,9 @@ export async function POST(request: Request) {
       ageMin: num(ed.ageMin),
       ageMax: num(ed.ageMax),
       categories: typeof ed.categories === 'string' ? ed.categories.trim().slice(0, 300) : null,
+      claimedOrganizerKey,
     };
   }
-
-  const wantsOrgClaim = !isGeneral && body.wantsOrgClaim === true;
 
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -186,6 +220,8 @@ interface ContactBody {
   kind?: 'event' | 'general';
   eventData?: RawEventData;
   wantsOrgClaim?: boolean;
+  /** Only honored when the signed-in user owns an approved claim for this key. */
+  claimedOrganizerKey?: string;
 }
 
 interface RawEventData {
@@ -220,4 +256,5 @@ interface NormalizedEventData {
   ageMin: number | null;
   ageMax: number | null;
   categories: string | null;
+  claimedOrganizerKey: string | null;
 }

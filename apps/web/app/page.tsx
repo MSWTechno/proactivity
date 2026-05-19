@@ -541,6 +541,11 @@ function LocationBar({
   return null;
 }
 
+interface ApprovedClaim {
+  organizerKey: string;
+  organizerName: string | null;
+}
+
 function SubmitEventModal({
   me,
   onClose,
@@ -551,6 +556,11 @@ function SubmitEventModal({
   const [name, setName] = useState(me?.name ?? '');
   const [email, setEmail] = useState(me?.email ?? '');
   const [organization, setOrganization] = useState('');
+  // Signed-in users with approved org claims get a dropdown to pick which
+  // of their orgs the event belongs to — skips the claim queue entirely
+  // since they're already approved.
+  const [approvedClaims, setApprovedClaims] = useState<ApprovedClaim[]>([]);
+  const [selectedClaimKey, setSelectedClaimKey] = useState<string>('');
   const [eventUrl, setEventUrl] = useState('');
   // Structured event fields — mirror the admin AddEventForm so submissions
   // arrive with all the data the admin needs, no parsing required.
@@ -572,6 +582,36 @@ function SubmitEventModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pull approved claims for signed-in users so we can populate the org
+  // picker. Anonymous users skip this fetch entirely.
+  useEffect(() => {
+    if (!me) return;
+    let cancelled = false;
+    fetch('/api/organizer/claim')
+      .then((r) => (r.ok ? r.json() : { claims: [] }))
+      .then((d: { claims?: Array<{ organizerKey: string; organizerName: string | null; status: string }> }) => {
+        if (cancelled) return;
+        const approved = (d.claims ?? [])
+          .filter((c) => c.status === 'approved')
+          .map((c) => ({ organizerKey: c.organizerKey, organizerName: c.organizerName }));
+        setApprovedClaims(approved);
+      })
+      .catch(() => { /* silent — fall back to free-text org input */ });
+    return () => { cancelled = true; };
+  }, [me]);
+
+  // When the user selects one of their claimed orgs, lock the org name to
+  // the claim's name and clear the claim-request checkbox (they already
+  // own it).
+  const onSelectClaim = (key: string) => {
+    setSelectedClaimKey(key);
+    if (key) {
+      const claim = approvedClaims.find((c) => c.organizerKey === key);
+      if (claim?.organizerName) setOrganization(claim.organizerName);
+      setWantsOrgClaim(false);
+    }
+  };
 
   const submit = async () => {
     setError(null);
@@ -602,6 +642,7 @@ function SubmitEventModal({
           eventUrl: eventUrl.trim(),
           message,
           wantsOrgClaim,
+          claimedOrganizerKey: selectedClaimKey || undefined,
           eventData: {
             title: title.trim(),
             description: description.trim() || undefined,
@@ -657,7 +698,39 @@ function SubmitEventModal({
             <div className="submit-event-section-label">Your info</div>
             <input className="rating-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" maxLength={120} />
             <input className="rating-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (required)" maxLength={200} required />
-            <input className="rating-input" type="text" value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Organization or venue" maxLength={200} />
+            {approvedClaims.length > 0 ? (
+              <>
+                <select
+                  className="rating-input"
+                  value={selectedClaimKey}
+                  onChange={(e) => onSelectClaim(e.target.value)}
+                >
+                  <option value="">— Pick one of your organizations, or enter a new one below —</option>
+                  {approvedClaims.map((c) => (
+                    <option key={c.organizerKey} value={c.organizerKey}>
+                      {c.organizerName ?? c.organizerKey}
+                    </option>
+                  ))}
+                </select>
+                {!selectedClaimKey && (
+                  <input
+                    className="rating-input"
+                    type="text"
+                    value={organization}
+                    onChange={(e) => setOrganization(e.target.value)}
+                    placeholder="Or enter a new organization or venue"
+                    maxLength={200}
+                  />
+                )}
+                {selectedClaimKey && (
+                  <p className="add-event-hint" style={{ margin: '-4px 2px 8px', fontSize: 12, color: 'var(--fg-muted, #666)' }}>
+                    This event will be filed under <strong>{organization}</strong>. No extra claim step — admin still reviews the event itself before it goes live.
+                  </p>
+                )}
+              </>
+            ) : (
+              <input className="rating-input" type="text" value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Organization or venue" maxLength={200} />
+            )}
 
             <div className="submit-event-section-label">Event details</div>
             <input className="rating-input" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title (required)" maxLength={200} required />
@@ -729,19 +802,21 @@ function SubmitEventModal({
               rows={3}
             />
 
-            <label className="submit-event-claim">
-              <input
-                type="checkbox"
-                checked={wantsOrgClaim}
-                onChange={(e) => setWantsOrgClaim(e.target.checked)}
-              />
-              <span>
-                I'm the organizer — claim <strong>{organization.trim() || 'this organization'}</strong> with my email so I can add and edit events directly in the future.
-                <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--fg-muted, #666)' }}>
-                  Once approved, sign in at <strong>{typeof window !== 'undefined' ? window.location.host : 'proactivity'}</strong> with this email (we'll send a one-tap login link) to manage your organization's events.
+            {!selectedClaimKey && (
+              <label className="submit-event-claim">
+                <input
+                  type="checkbox"
+                  checked={wantsOrgClaim}
+                  onChange={(e) => setWantsOrgClaim(e.target.checked)}
+                />
+                <span>
+                  I'm the organizer — claim <strong>{organization.trim() || 'this organization'}</strong> with my email so I can add and edit events directly in the future.
+                  <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--fg-muted, #666)' }}>
+                    Once approved, sign in at <strong>{typeof window !== 'undefined' ? window.location.host : 'proactivity'}</strong> with this email (we'll send a one-tap login link) to manage your organization's events.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            )}
 
             {error && <p className="rating-error">{error}</p>}
             <button type="button" className="btn-primary" disabled={submitting} onClick={submit}>

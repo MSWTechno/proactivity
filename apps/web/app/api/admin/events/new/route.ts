@@ -68,11 +68,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid contactId' }, { status: 400 });
   }
 
-  // If this came from a contact submission, look up wants_org_claim + the
-  // submitter's email/name so the transaction below can also queue the
-  // organizer claim atomically.
+  // If this came from a contact submission, look up wants_org_claim,
+  // the submitter info (for queueing a claim), and any pre-existing
+  // claimedOrganizerKey the submitter selected from their dropdown.
   const contactIdValue = body.contactId?.trim() || null;
   let claimContext: { email: string; name: string | null; org: string } | null = null;
+  let preClaimedKey: string | null = null;
   if (contactIdValue) {
     const subRows = await db
       .select({
@@ -80,15 +81,24 @@ export async function POST(request: Request) {
         name: contactSubmissions.name,
         organization: contactSubmissions.organization,
         wantsOrgClaim: contactSubmissions.wantsOrgClaim,
+        eventData: contactSubmissions.eventData,
       })
       .from(contactSubmissions)
       .where(eq(contactSubmissions.id, contactIdValue))
       .limit(1);
     const sub = subRows[0];
-    if (sub?.wantsOrgClaim) {
-      const claimOrg = sub.organization?.trim() || body.organizerName?.trim() || '';
-      if (claimOrg) {
-        claimContext = { email: sub.email, name: sub.name, org: claimOrg };
+    if (sub) {
+      const ed = (sub.eventData ?? null) as null | { claimedOrganizerKey?: string };
+      if (ed?.claimedOrganizerKey && typeof ed.claimedOrganizerKey === 'string') {
+        preClaimedKey = ed.claimedOrganizerKey;
+      }
+      // Only queue a fresh claim when the submitter requested one AND
+      // didn't pick an already-claimed org from their dropdown.
+      if (sub.wantsOrgClaim && !preClaimedKey) {
+        const claimOrg = sub.organization?.trim() || body.organizerName?.trim() || '';
+        if (claimOrg) {
+          claimContext = { email: sub.email, name: sub.name, org: claimOrg };
+        }
       }
     }
   }
@@ -141,15 +151,17 @@ export async function POST(request: Request) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // If a claim is being created alongside, the activity needs an
-  // organizer_key so the claim has something to reference. Reuse the
-  // existing key for this org name if any activity already has one,
-  // otherwise mint a fresh user:<slug>-<suffix>.
+  // Activity's organizer_key resolution:
+  //   1. If the submitter picked an existing claimed org from their dropdown,
+  //      use that key (preClaimedKey) — they're already an approved owner.
+  //   2. Otherwise, if a fresh claim is being queued, reuse any existing
+  //      key for this org name or mint a new user:<slug>-<suffix>.
+  //   3. Otherwise null (legacy / no claim).
   const slugify = (s: string) =>
     s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  let organizerKey: string | null = null;
-  if (claimContext) {
+  let organizerKey: string | null = preClaimedKey;
+  if (!organizerKey && claimContext) {
     const keyRows = (await pgSql`
       SELECT organizer_key FROM activities
       WHERE organizer_name = ${claimContext.org}
