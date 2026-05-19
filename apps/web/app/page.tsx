@@ -877,6 +877,9 @@ function ActivityCard({ a, onRate }: { a: Activity; onRate: () => void }) {
       )}
       <div className="card-body">
         <p className="card-title">{a.title}</p>
+        {a.organizer?.name && (
+          <p className="card-organizer">{a.organizer.name}</p>
+        )}
         <p className="card-meta">
           <time dateTime={a.startAt}>{timeStr}</time>
           {place ? <> · {place}</> : null}

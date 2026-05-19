@@ -34,8 +34,25 @@ export function inferAgeRange(input: {
     if (n >= 5 && n <= 99) return { min: n, max: null, label: `${n}+` };
   }
 
-  // 3. Explicit ranges: "ages 5-12", "5–10 years".
-  const range = text.match(/\b(?:ages?\s+)?(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(?:yr|year|years|y\.o\.|months?)?\b/i);
+  // 3a. Grade ranges first: "grades 7-12", "grade 7th-12th".
+  //     Approximate grade-to-age: age = grade + 5 (US K-12 convention).
+  //     Catch before the generic-range rule so "grades 7-12" doesn't get
+  //     misread as "ages 7-12".
+  const gradeRange = text.match(/\bgrades?\s+(\d{1,2})(?:st|nd|rd|th)?\s*[-–]\s*(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if (gradeRange) {
+    const gLo = parseInt(gradeRange[1]!, 10);
+    const gHi = parseInt(gradeRange[2]!, 10);
+    if (gLo >= 0 && gHi <= 12 && gLo < gHi) {
+      return { min: gLo + 5, max: gHi + 6, label: `Grades ${gLo}–${gHi}` };
+    }
+  }
+
+  // 3b. Explicit age ranges. Require either an "ages" prefix OR a unit
+  //     suffix ("years", "y.o.", "months") — otherwise bare "7-12" in a
+  //     description could mean ounces, dollars, or anything else.
+  const prefixed = text.match(/\bages?\s+(\d{1,2})\s*[-–]\s*(\d{1,2})\b/i);
+  const suffixed = text.match(/\b(\d{1,2})\s*[-–]\s*(\d{1,2})\s+(?:yr|year|years|y\.o\.|months?)\b/i);
+  const range = prefixed ?? suffixed;
   if (range) {
     const lo = parseInt(range[1]!, 10);
     const hi = parseInt(range[2]!, 10);

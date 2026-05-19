@@ -36,7 +36,7 @@ const RULES: { key: CategoryKey; pattern: RegExp }[] = [
   { key: 'family',    pattern: /\b(famil(y|ies)|kids?|children|baby|babies|toddler|teen|youth|all ages|story[- ]?time)\b/i },
   { key: 'food',      pattern: /\b(food truck|brunch|dinner|lunch|tasting|wine|brewery|brewing|cider|distill|cocktail|chef|cooking class|barbecue|bbq|pizza)\b/i },
   { key: 'markets',   pattern: /\b(market|farmers|vendor|pop[- ]?up|swap meet|flea|craft fair|expo)\b/i },
-  { key: 'sports',    pattern: /\b(game|match|tournament|run\b|race|cycling|hike|hiking|baseball|softball|soccer|football|basketball|tennis|golf|swimming|fitness)\b/i },
+  { key: 'sports',    pattern: /\b(sports?|athletics?|game|match|tournament|league|clinic|skills?|run\b|race|cycling|hike|hiking|baseball|softball|soccer|football|basketball|volleyball|tennis|pickleball|golf|hockey|swim(ming)?|skat(e|ing)|ski(ing)?|snowboard|climb(ing)?|bowling|martial\s*arts|karate|judo|taekwondo|jiu[- ]?jitsu|workout|fitness|gym)\b/i },
   { key: 'education', pattern: /\b(class|workshop|seminar|lecture|talk|symposium|reading|book club|learn|tutorial|how[- ]to)\b/i },
   { key: 'outdoor',   pattern: /\b(outdoor|park|nature|trail|garden|wildflower|cave|caverns|mountain|river|lake|orchard|farm|skyline drive)\b/i },
   { key: 'arts',      pattern: /\b(art|gallery|exhibit(ion)?|paint|drawing|sculpture|craft|maker|pottery|ceramic|photography|film|movie)\b/i },

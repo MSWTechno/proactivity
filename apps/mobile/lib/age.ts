@@ -29,7 +29,20 @@ export function inferAgeRange(input: {
     if (n >= 5 && n <= 99) return { min: n, max: null, label: `${n}+` };
   }
 
-  const range = text.match(/\b(?:ages?\s+)?(\d{1,2})\s*[-–]\s*(\d{1,2})\s*(?:yr|year|years|y\.o\.|months?)?\b/i);
+  // Grade ranges first: "grades 7-12" → approximate age + 5 (US K-12).
+  const gradeRange = text.match(/\bgrades?\s+(\d{1,2})(?:st|nd|rd|th)?\s*[-–]\s*(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if (gradeRange) {
+    const gLo = parseInt(gradeRange[1]!, 10);
+    const gHi = parseInt(gradeRange[2]!, 10);
+    if (gLo >= 0 && gHi <= 12 && gLo < gHi) {
+      return { min: gLo + 5, max: gHi + 6, label: `Grades ${gLo}–${gHi}` };
+    }
+  }
+
+  // Explicit age ranges — require "ages" prefix OR a unit suffix.
+  const prefixed = text.match(/\bages?\s+(\d{1,2})\s*[-–]\s*(\d{1,2})\b/i);
+  const suffixed = text.match(/\b(\d{1,2})\s*[-–]\s*(\d{1,2})\s+(?:yr|year|years|y\.o\.|months?)\b/i);
+  const range = prefixed ?? suffixed;
   if (range) {
     const lo = parseInt(range[1]!, 10);
     const hi = parseInt(range[2]!, 10);
