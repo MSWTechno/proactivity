@@ -248,12 +248,14 @@ export default function HomePage() {
               Submit your event
             </button>
             {me ? (
-              <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {noAds && <span className="badge badge-plus">Plus</span>}
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                 <a href="/organizer" className="header-account">Manage events</a>
-                <button type="button" className="header-account" onClick={signOut} title={me.email}>
-                  {me.name || me.email.split('@')[0]} · sign out
-                </button>
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {noAds && <span className="badge badge-plus">Plus</span>}
+                  <button type="button" className="header-account" onClick={signOut} title={me.email}>
+                    {me.name || me.email.split('@')[0]} · sign out
+                  </button>
+                </span>
               </span>
             ) : (
               <a href="/login" className="header-account">Sign in</a>
