@@ -38,6 +38,7 @@ export default function EventsTable() {
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [debouncedOrganizer, setDebouncedOrganizer] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -94,6 +95,26 @@ export default function EventsTable() {
   const logout = async () => {
     await fetch('/api/admin/logout', { method: 'POST' });
     router.replace('/admin/login');
+  };
+
+  const deleteEvent = async (id: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"? This can't be undone. If it came from an ingested source it may reappear on the next cron run.`)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setItems((xs) => xs.filter((x) => x.id !== id));
+      setTotalEvents((n) => Math.max(0, n - 1));
+    } catch (e) {
+      alert(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -203,7 +224,18 @@ export default function EventsTable() {
               <td>{[e.city, e.region].filter(Boolean).join(', ') || <span style={{ color: 'var(--fg-subtle)' }}>—</span>}</td>
               <td className="admin-td-right admin-clicks">{e.clickCount}</td>
               <td className="admin-td-right">
-                <Link href={`/admin/events/${e.id}/edit`} className="admin-tab" style={{ fontSize: 12 }}>Edit</Link>
+                <span style={{ display: 'inline-flex', gap: 6 }}>
+                  <Link href={`/admin/events/${e.id}/edit`} className="admin-tab" style={{ fontSize: 12 }}>Edit</Link>
+                  <button
+                    type="button"
+                    className="admin-tab admin-btn-reject"
+                    onClick={() => deleteEvent(e.id, e.title)}
+                    disabled={deletingId === e.id}
+                    style={{ fontSize: 12 }}
+                  >
+                    {deletingId === e.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </span>
               </td>
             </tr>
           ))}

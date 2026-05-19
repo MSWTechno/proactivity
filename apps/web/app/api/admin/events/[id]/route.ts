@@ -238,3 +238,28 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
   return NextResponse.json({ ok: true });
 }
+
+/**
+ * DELETE /api/admin/events/:id
+ * Hard-delete an activity. Note: events ingested from a recurring source
+ * (iCal feed, jsonld-event scraper, etc.) will reappear on the next cron
+ * run unless the underlying source is removed or the event no longer
+ * exists upstream. Manual entries and contact-submitted events stay gone.
+ */
+export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (guard) return NextResponse.json(guard.body, { status: guard.status });
+
+  const { id } = await ctx.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
+
+  const deleted = (await sql`
+    DELETE FROM activities WHERE id = ${id} RETURNING id
+  `) as unknown as { id: string }[];
+  if (deleted.length === 0) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}
