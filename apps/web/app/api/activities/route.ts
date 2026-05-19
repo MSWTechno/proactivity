@@ -211,7 +211,12 @@ export async function GET(request: Request) {
       distanceMeters: r.distance_m,
       ratingAverage: r.rating_average,
       ratingCount: r.rating_count,
-      organizer: r.organizer_key
+      // Surface the organizer object whenever the activity has any
+      // organizer info, even if no organizer_key is set yet. Manual/
+      // contact-form events often start with a name but no key (and
+      // shouldn't hide the name from the card just because of that).
+      // Org-reviews fetching is gated on key being non-null downstream.
+      organizer: (r.organizer_key || r.organizer_name)
         ? {
             name: r.organizer_name,
             url: r.organizer_url,

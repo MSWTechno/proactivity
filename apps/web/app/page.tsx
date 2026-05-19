@@ -34,7 +34,8 @@ interface Activity {
   organizer: {
     name: string | null;
     url: string | null;
-    key: string;
+    /** Null when the organizer has no key yet (manual entry, contact submission with no claim). */
+    key: string | null;
     ratingAverage: number | null;
     ratingCount: number;
   } | null;
