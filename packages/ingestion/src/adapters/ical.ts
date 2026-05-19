@@ -159,15 +159,18 @@ function mapInstance(
   const categories = parseCategories(evExtra.categories);
   const { organizerName, organizerUrl } = parseOrganizer(evExtra.organizer);
 
+  const address = stripIcalEscapes(ev.location) ?? null;
+  const description = stripIcalEscapes(ev.description) ?? null;
+
   return {
     sourceEventId,
     title: ev.summary || '(untitled)',
-    description: stripIcalEscapes(ev.description) ?? null,
+    description,
     startAt: start,
     endAt: end,
     timezone: (start as Date & { tz?: string }).tz ?? null,
     venueName: null,
-    address: stripIcalEscapes(ev.location) ?? null,
+    address,
     city: null,
     region: null,
     country: null,
@@ -178,6 +181,7 @@ function mapInstance(
     costMaxCents: null,
     currency: null,
     availability: defaultAvailability,
+    isVirtual: detectVirtual(address, description, categories),
     organizerName,
     organizerUrl,
     organizerKey: null, // runner derives
@@ -231,4 +235,39 @@ function parseCategories(value: unknown): string[] | null {
 function stripIcalEscapes(s: string | undefined): string | null {
   if (!s) return null;
   return s.replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';');
+}
+
+/**
+ * Best-effort virtual-event detection for iCal feeds, which don't carry a
+ * schema.org-style eventAttendanceMode. Signals (any one is enough):
+ *   - CATEGORIES contains "Virtual" / "Online" / "Webinar" (Bridgewater
+ *     College and others use this convention)
+ *   - LOCATION is itself a URL (a meeting link with no street address)
+ *   - LOCATION contains an obvious meeting-platform marker (Zoom, Teams,
+ *     Webex, Google Meet, GoToMeeting)
+ *   - DESCRIPTION contains an obvious join-link phrase ("join zoom",
+ *     "via zoom", "zoom meeting", "webinar registration", etc.)
+ *
+ * Conservative on purpose: bare "online" in a description is too broad
+ * (registration pages, online tickets, etc.) so it's not matched alone.
+ */
+function detectVirtual(
+  address: string | null,
+  description: string | null,
+  categories: string[] | null,
+): boolean {
+  if (categories?.some((c) => /^(virtual|online|webinar)$/i.test(c.trim()))) {
+    return true;
+  }
+  const loc = address?.trim() ?? '';
+  if (/^https?:\/\//i.test(loc)) return true;
+  const locLower = loc.toLowerCase();
+  if (/\b(zoom|microsoft teams|google meet|webex|gotomeeting|virtual event|webinar)\b/.test(locLower)) {
+    return true;
+  }
+  const desc = (description ?? '').toLowerCase();
+  if (/\b(zoom meeting|via zoom|join zoom|webinar registration|webcast|livestream|virtual event)\b/.test(desc)) {
+    return true;
+  }
+  return false;
 }

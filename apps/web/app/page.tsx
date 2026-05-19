@@ -642,7 +642,7 @@ function SubmitEventModal({
             </p>
             {wantsOrgClaim && (
               <p className="onboarding-sub" style={{ fontSize: 13, marginTop: 8 }}>
-                We've also queued your request to claim <strong>{organization || 'the organization'}</strong>. Once approved, you'll be able to add and edit events directly.
+                We've also queued your request to claim <strong>{organization || 'the organization'}</strong>. Once approved, sign in with <strong>{email}</strong> (we'll email you a one-tap login link) to add and edit events for this organization directly.
               </p>
             )}
             <button type="button" className="btn-primary" onClick={onClose}>Close</button>
@@ -737,6 +737,9 @@ function SubmitEventModal({
               />
               <span>
                 I'm the organizer — claim <strong>{organization.trim() || 'this organization'}</strong> with my email so I can add and edit events directly in the future.
+                <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--fg-muted, #666)' }}>
+                  Once approved, sign in at <strong>{typeof window !== 'undefined' ? window.location.host : 'proactivity'}</strong> with this email (we'll send a one-tap login link) to manage your organization's events.
+                </span>
               </span>
             </label>
 
