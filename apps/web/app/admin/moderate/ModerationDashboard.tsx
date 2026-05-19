@@ -185,6 +185,27 @@ export default function ModerationDashboard() {
     }
   };
 
+  const deleteClaim = async (c: PendingClaim) => {
+    const isUserCreated = c.organizerKey.startsWith('user:');
+    const warn = isUserCreated && c.eventCount > 0
+      ? `Delete claim for "${c.organizerName ?? c.organizerKey}"? This will also delete ${c.eventCount} event${c.eventCount === 1 ? '' : 's'} (user-created org). This can't be undone.`
+      : `Delete claim for "${c.organizerName ?? c.organizerKey}"? This can't be undone.`;
+    if (!window.confirm(warn)) return;
+    setBusyId(c.id);
+    try {
+      const res = await fetch(`/api/admin/claims/${c.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setClaims((cs) => cs.filter((x) => x.id !== c.id));
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const moderateDraft = async (id: string, action: 'approve' | 'reject') => {
     setBusyId(id);
     try {
@@ -365,6 +386,13 @@ export default function ModerationDashboard() {
                   disabled={busyId === c.id}
                   onClick={() => moderateClaim(c.id, 'reject')}
                 >Reject</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-reject"
+                  disabled={busyId === c.id}
+                  onClick={() => deleteClaim(c)}
+                  title="Hard-delete this claim (and its user-created org's events, if any)"
+                >Delete</button>
               </div>
             </article>
           ))}

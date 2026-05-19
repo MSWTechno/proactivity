@@ -118,6 +118,25 @@ export default function OrganizerDashboard() {
   const rejectedClaims = claims.filter((c) => c.status === 'rejected');
   const totalApprovedClicks30d = approvedClaims.reduce((s, c) => s + c.clicks30d, 0);
 
+  const deleteClaim = async (c: Claim) => {
+    const orgName = c.organizerName ?? c.organizerKey;
+    const isUserCreated = c.organizerKey.startsWith('user:');
+    const warn = isUserCreated && c.eventCount > 0
+      ? `Delete ${orgName}? This will also delete ${c.eventCount} event${c.eventCount === 1 ? '' : 's'}. This can't be undone.`
+      : `Delete your claim for ${orgName}? You'll lose access to manage its events.`;
+    if (!window.confirm(warn)) return;
+    try {
+      const res = await fetch(`/api/organizer/claim?id=${c.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      load();
+    } catch (e) {
+      alert(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <main className="organizer-main">
       <header className="admin-header">
@@ -231,6 +250,16 @@ export default function OrganizerDashboard() {
               {c.moderatorNote && (
                 <p className="organizer-card-mod-note">Moderator note: {c.moderatorNote}</p>
               )}
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="admin-tab admin-btn-reject"
+                  onClick={() => deleteClaim(c)}
+                  style={{ fontSize: 11 }}
+                >
+                  Delete
+                </button>
+              </div>
             </article>
           ))}
         </div>

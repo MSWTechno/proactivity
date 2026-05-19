@@ -138,3 +138,64 @@ function parseNote(note: string | null): { url: string | null; rest: string | nu
   if (!match) return { url: null, rest: note };
   return { url: match[1] ?? null, rest: match[2]?.trim() || null };
 }
+
+/**
+ * DELETE /api/organizer/claim?id=<claimId>
+ * Removes the current user's claim for an organization. If the org is a
+ * user-created one (key starts with 'user:') AND no other approved claim
+ * exists for it, all activities tied to that organizer_key are also hard-
+ * deleted — there'd be no one left to manage them. For source-ingested
+ * orgs that the user claimed, only the claim row goes; the activities
+ * stay (they belong to the source, not the user).
+ */
+export async function DELETE(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'sign in first' }, { status: 401 });
+
+  const url = new URL(request.url);
+  const id = url.searchParams.get('id')?.trim() ?? '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
+
+  const claim = (
+    await db
+      .select()
+      .from(organizerClaims)
+      .where(and(eq(organizerClaims.id, id), eq(organizerClaims.userId, user.id)))
+      .limit(1)
+  )[0];
+  if (!claim) {
+    return NextResponse.json({ error: 'not your claim' }, { status: 403 });
+  }
+
+  const result = await db.transaction(async (tx) => {
+    await tx.delete(organizerClaims).where(eq(organizerClaims.id, id));
+
+    // Only cascade-delete activities for user-created orgs when no other
+    // approved claim is left. Source-ingested orgs (eventbrite-foo, etc.)
+    // never auto-prune.
+    let deletedActivities = 0;
+    if (claim.organizerKey.startsWith('user:')) {
+      const remaining = await tx
+        .select({ id: organizerClaims.id })
+        .from(organizerClaims)
+        .where(
+          and(
+            eq(organizerClaims.organizerKey, claim.organizerKey),
+            eq(organizerClaims.status, 'approved'),
+          ),
+        )
+        .limit(1);
+      if (remaining.length === 0) {
+        const deleted = (await sql`
+          DELETE FROM activities WHERE organizer_key = ${claim.organizerKey} RETURNING id
+        `) as unknown as { id: string }[];
+        deletedActivities = deleted.length;
+      }
+    }
+    return { deletedActivities };
+  });
+
+  return NextResponse.json({ ok: true, deletedActivities: result.deletedActivities });
+}

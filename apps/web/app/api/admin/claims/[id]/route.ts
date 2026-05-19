@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { sql } from '@proactivity/db';
+import { db, organizerClaims, sql } from '@proactivity/db';
+import { and, eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
 import { notifyClaimResolved } from '@/lib/email';
 
@@ -49,4 +50,54 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   });
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * DELETE /api/admin/claims/:id
+ * Admin hard-delete of an organizer claim. Same cascade rule as the
+ * user-side DELETE: if it's a user-created org (key starts with 'user:')
+ * and no other approved claim remains for that key, the associated
+ * activities are also deleted (no one left to manage them).
+ */
+export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requireAdmin();
+  if (guard) return NextResponse.json(guard.body, { status: guard.status });
+
+  const { id } = await ctx.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
+
+  const claim = (
+    await db.select().from(organizerClaims).where(eq(organizerClaims.id, id)).limit(1)
+  )[0];
+  if (!claim) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  const result = await db.transaction(async (tx) => {
+    await tx.delete(organizerClaims).where(eq(organizerClaims.id, id));
+    let deletedActivities = 0;
+    if (claim.organizerKey.startsWith('user:')) {
+      const remaining = await tx
+        .select({ id: organizerClaims.id })
+        .from(organizerClaims)
+        .where(
+          and(
+            eq(organizerClaims.organizerKey, claim.organizerKey),
+            eq(organizerClaims.status, 'approved'),
+          ),
+        )
+        .limit(1);
+      if (remaining.length === 0) {
+        const deleted = (await sql`
+          DELETE FROM activities WHERE organizer_key = ${claim.organizerKey} RETURNING id
+        `) as unknown as { id: string }[];
+        deletedActivities = deleted.length;
+      }
+    }
+    return { deletedActivities };
+  });
+
+  return NextResponse.json({ ok: true, deletedActivities: result.deletedActivities });
 }
