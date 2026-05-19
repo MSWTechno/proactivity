@@ -250,6 +250,7 @@ export default function HomePage() {
             {me ? (
               <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {noAds && <span className="badge badge-plus">Plus</span>}
+                <a href="/organizer" className="header-account">Manage events</a>
                 <button type="button" className="header-account" onClick={signOut} title={me.email}>
                   {me.name || me.email.split('@')[0]} · sign out
                 </button>
@@ -257,11 +258,7 @@ export default function HomePage() {
             ) : (
               <a href="/login" className="header-account">Sign in</a>
             )}
-            {!noAds && (
-              <a href="/pricing" className="header-account" style={{ color: 'var(--accent)' }}>
-                Get Plus →
-              </a>
-            )}
+            {/* "Get Plus →" link hidden until Stripe is configured — see project memory. */}
           </div>
         </div>
         <LocationBar geo={geo} placeName={placeName} onRetry={() => window.location.reload()} />

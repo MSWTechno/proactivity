@@ -152,16 +152,19 @@ export default function OrganizerDashboard() {
                   : `Free up to ${FREE_TIER_CLICK_LIMIT} clicks/month. Currently ${totalApprovedClicks30d} in last 30 days.`}
               </p>
             </div>
-            <div>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={subscribe}
-                style={{ marginTop: 0 }}
-              >
-                {orgProActive ? 'Manage subscription' : 'Upgrade to Plus — $19/mo'}
-              </button>
-            </div>
+            {/* Upgrade CTA hidden until Stripe is configured — see project memory. */}
+            {orgProActive && (
+              <div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={subscribe}
+                  style={{ marginTop: 0 }}
+                >
+                  Manage subscription
+                </button>
+              </div>
+            )}
           </div>
         </section>
       )}
