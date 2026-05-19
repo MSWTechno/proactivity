@@ -47,7 +47,9 @@ interface OrgEvent {
   title: string;
   startAt: string;
   venueName: string | null;
+  address: string | null;
   city: string | null;
+  region: string | null;
   url: string | null;
   availability: string;
   organizerKey: string | null;
@@ -540,6 +542,7 @@ function EventsSection({
           activityId={editing?.id ?? null}
           copyFromActivityId={copyFrom?.id ?? null}
           approvedClaims={approvedClaims}
+          previousEvents={events}
           onCreateOrg={() => {
             setAdding(null);
             setEditing(null);
@@ -614,12 +617,108 @@ function localDateTimeToIso(local: string): string {
   return isNaN(d.getTime()) ? '' : d.toISOString();
 }
 
+interface PrefillEvent {
+  title: string;
+  description: string | null;
+  startAt: string;
+  endAt: string | null;
+  url: string | null;
+  imageUrl: string | null;
+  venueName: string | null;
+  address: string | null;
+  city: string | null;
+  region: string | null;
+  organizerName: string | null;
+  organizerUrl: string | null;
+  costMinCents: number | null;
+  costMaxCents: number | null;
+  availability: string;
+  categories: string[] | null;
+}
+
+/**
+ * Two convenience pickers at the top of the new-event form:
+ *   - "Copy from a previous event" → prefills every field (dates shifted +7d)
+ *   - "Use venue from a previous event" → prefills only venue/address/city/state
+ * Both deduplicate sensibly (full copy lists all events; venue dedupes by
+ * venue+address tuple so the same venue doesn't appear 10 times).
+ */
+function CopyPickers({
+  previousEvents,
+  onCopyAll,
+  onUseVenue,
+}: {
+  previousEvents: OrgEvent[];
+  onCopyAll: (id: string) => void;
+  onUseVenue: (ev: OrgEvent) => void;
+}) {
+  // Dedupe by (venueName + address) so the venue dropdown doesn't repeat
+  // the same place once per event.
+  const uniqueVenues = (() => {
+    const seen = new Set<string>();
+    const out: OrgEvent[] = [];
+    for (const e of previousEvents) {
+      if (!e.venueName?.trim() && !e.address?.trim()) continue;
+      const key = `${e.venueName ?? ''}|${e.address ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(e);
+    }
+    return out;
+  })();
+
+  return (
+    <div className="add-event-field add-event-field-full" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ flex: '1 1 200px' }}>
+        <label style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Copy from a previous event</label>
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            const id = e.target.value;
+            if (id) onCopyAll(id);
+            e.target.value = '';
+          }}
+        >
+          <option value="">— Start blank —</option>
+          {previousEvents.slice(0, 50).map((ev) => (
+            <option key={ev.id} value={ev.id}>
+              {ev.title}{ev.startAt ? ` · ${new Date(ev.startAt).toLocaleDateString()}` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+      {uniqueVenues.length > 0 && (
+        <div style={{ flex: '1 1 200px' }}>
+          <label style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Use venue from a previous event</label>
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              const id = e.target.value;
+              const ev = uniqueVenues.find((u) => u.id === id);
+              if (ev) onUseVenue(ev);
+              e.target.value = '';
+            }}
+          >
+            <option value="">— Enter a new venue —</option>
+            {uniqueVenues.slice(0, 50).map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {[ev.venueName, ev.address, ev.city].filter(Boolean).join(' · ')}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DraftForm({
   mode,
   organizerKey,
   activityId,
   copyFromActivityId,
   approvedClaims,
+  previousEvents,
   onCreateOrg,
   onClose,
   onSubmitted,
@@ -630,6 +729,8 @@ function DraftForm({
   copyFromActivityId: string | null;
   /** Approved claims the user can file under; rendered as a dropdown in 'new' mode. */
   approvedClaims: Claim[];
+  /** User's existing manageable events — used to offer "copy from" and "use venue from" dropdowns. */
+  previousEvents: OrgEvent[];
   /** Called when the user clicks "+ Create new organization" inside the dropdown. */
   onCreateOrg: () => void;
   onClose: () => void;
@@ -786,6 +887,55 @@ function DraftForm({
                   <option value="__new__">+ Create a new organization…</option>
                 </select>
               </div>
+            )}
+
+            {mode === 'new' && !copyFromActivityId && previousEvents.length > 0 && (
+              <CopyPickers
+                previousEvents={previousEvents}
+                onCopyAll={(id) => {
+                  // Repurpose the existing copyFromActivityId effect:
+                  // navigate back into the form with the chosen id as the
+                  // copy source. Simpler to ask the parent to drive this
+                  // — but for now, just fetch inline and prefill.
+                  fetch(`/api/organizer/events/${id}`)
+                    .then((r) => r.json())
+                    .then((d: { event?: PrefillEvent; error?: string }) => {
+                      if (!d.event) throw new Error(d.error ?? 'Failed to load');
+                      const e = d.event;
+                      const startLocal = toLocalDateTime(e.startAt);
+                      const endLocal = toLocalDateTime(e.endAt);
+                      setValues((prev) => ({
+                        ...prev,
+                        title: e.title,
+                        description: e.description ?? '',
+                        startAt: shiftDateByDays(startLocal, 7),
+                        endAt: shiftDateByDays(endLocal, 7),
+                        url: e.url ?? '',
+                        imageUrl: e.imageUrl ?? '',
+                        venueName: e.venueName ?? '',
+                        address: e.address ?? '',
+                        city: e.city ?? '',
+                        region: e.region ?? '',
+                        organizerName: e.organizerName ?? '',
+                        organizerUrl: e.organizerUrl ?? '',
+                        costMin: e.costMinCents != null ? (e.costMinCents / 100).toString() : '',
+                        costMax: e.costMaxCents != null ? (e.costMaxCents / 100).toString() : '',
+                        availability: e.availability,
+                        categories: e.categories?.join(', ') ?? '',
+                      }));
+                    })
+                    .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+                }}
+                onUseVenue={(ev) => {
+                  setValues((prev) => ({
+                    ...prev,
+                    venueName: ev.venueName ?? '',
+                    address: ev.address ?? '',
+                    city: ev.city ?? '',
+                    region: ev.region ?? '',
+                  }));
+                }}
+              />
             )}
             <div className="add-event-field add-event-field-full">
               <label>Title *</label>

@@ -255,7 +255,7 @@ export async function GET(request: Request) {
   // own contact submission) so the UI can group them separately.
   const events = (await sql`
     SELECT DISTINCT ON (a.id)
-      a.id, a.title, a.start_at, a.end_at, a.venue_name, a.city, a.region,
+      a.id, a.title, a.start_at, a.end_at, a.venue_name, a.address, a.city, a.region,
       a.url, a.image_url, a.cost_min_cents, a.cost_max_cents, a.availability,
       a.organizer_key, a.organizer_name, a.manual_override,
       CASE WHEN a.organizer_key = ANY(${keysToQuery as string[]}) THEN 'owned' ELSE 'submitted' END AS edit_source
@@ -278,6 +278,7 @@ export async function GET(request: Request) {
     start_at: Date;
     end_at: Date | null;
     venue_name: string | null;
+    address: string | null;
     city: string | null;
     region: string | null;
     url: string | null;
@@ -315,6 +316,7 @@ export async function GET(request: Request) {
         startAt: e.start_at,
         endAt: e.end_at,
         venueName: e.venue_name,
+        address: e.address,
         city: e.city,
         region: e.region,
         url: e.url,
