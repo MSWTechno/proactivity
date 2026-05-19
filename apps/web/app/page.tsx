@@ -597,9 +597,9 @@ function SubmitEventModal({
       <div className="onboarding-card" onClick={(e) => e.stopPropagation()}>
         {submitted ? (
           <>
-            <h2 className="onboarding-title">Thanks!</h2>
+            <h2 className="onboarding-title">Thanks — got it!</h2>
             <p className="onboarding-sub">
-              We got your message. We'll reach out at <strong>{email}</strong> after reviewing.
+              Your event will be reviewed and approved as soon as possible. We'll reach out to <strong>{email}</strong> if we have any questions.
             </p>
             <button type="button" className="btn-primary" onClick={onClose}>Close</button>
           </>
