@@ -236,7 +236,10 @@ export default function OrganizerDashboard() {
         </div>
       </section>
 
-      <EventsSection approvedClaims={approvedClaims} />
+      <EventsSection
+        approvedClaims={approvedClaims}
+        onCreateOrgRequested={() => setShowCreateForm(true)}
+      />
 
       {approvedClaims.length > 0 && (
         <UrlSubmissionsSection approvedClaims={approvedClaims} />
@@ -256,7 +259,13 @@ export default function OrganizerDashboard() {
  * actions and a button to submit a brand-new event draft. All changes go
  * through admin moderation; this section also shows pending drafts.
  */
-function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
+function EventsSection({
+  approvedClaims,
+  onCreateOrgRequested,
+}: {
+  approvedClaims: Claim[];
+  onCreateOrgRequested: () => void;
+}) {
   const [events, setEvents] = useState<OrgEvent[]>([]);
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -264,6 +273,7 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
   const [editing, setEditing] = useState<OrgEvent | null>(null);
   // When non-null, opens the Add form pre-filled from this event.
   const [copyFrom, setCopyFrom] = useState<OrgEvent | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,6 +285,23 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const deleteEvent = async (id: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"? This can't be undone.`)) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/organizer/events/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setEvents((es) => es.filter((e) => e.id !== id));
+    } catch (e) {
+      alert(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const pendingDraftForActivity = (activityId: string) =>
     drafts.find((d) => d.activityId === activityId && d.status === 'pending');
 
@@ -282,6 +309,18 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
     <section className="admin-section">
       <h2 className="admin-section-title">
         Your events <span className="admin-section-count">{loading ? '…' : events.length}</span>
+        {approvedClaims.length > 0 && (
+          <span style={{ marginLeft: 'auto' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => { setAdding(approvedClaims[0]!.organizerKey); setEditing(null); setCopyFrom(null); }}
+              style={{ marginTop: 0, padding: '8px 14px', fontSize: 13 }}
+            >
+              + Add new event
+            </button>
+          </span>
+        )}
       </h2>
       <p className="onboarding-sub" style={{ marginTop: -6, marginBottom: 16 }}>
         Add new events or edit existing ones. All changes are reviewed by an admin before going live.
@@ -368,6 +407,15 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
                       >
                         Edit
                       </button>
+                      <button
+                        type="button"
+                        className="admin-tab admin-btn-reject"
+                        onClick={() => deleteEvent(e.id, e.title)}
+                        disabled={deletingId === e.id}
+                        style={{ fontSize: 12 }}
+                      >
+                        {deletingId === e.id ? 'Deleting…' : 'Delete'}
+                      </button>
                     </div>
                   </div>
                 );
@@ -413,6 +461,15 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
                     >
                       Edit
                     </button>
+                    <button
+                      type="button"
+                      className="admin-tab admin-btn-reject"
+                      onClick={() => deleteEvent(e.id, e.title)}
+                      disabled={deletingId === e.id}
+                      style={{ fontSize: 12 }}
+                    >
+                      {deletingId === e.id ? 'Deleting…' : 'Delete'}
+                    </button>
                   </div>
                 </div>
               );
@@ -444,15 +501,22 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
         </details>
       )}
 
-      {(adding || editing) && (
+      {(adding !== null || editing) && (
         <DraftForm
           mode={editing ? 'edit' : 'new'}
           // For submitter-edit on activities without an org, organizerKey
           // can be null — PATCH ignores the body field and derives from
           // the activity itself, so any value works.
-          organizerKey={adding ?? editing!.organizerKey ?? ''}
+          organizerKey={adding ?? editing!.organizerKey ?? approvedClaims[0]?.organizerKey ?? ''}
           activityId={editing?.id ?? null}
           copyFromActivityId={copyFrom?.id ?? null}
+          approvedClaims={approvedClaims}
+          onCreateOrg={() => {
+            setAdding(null);
+            setEditing(null);
+            setCopyFrom(null);
+            onCreateOrgRequested();
+          }}
           onClose={() => { setAdding(null); setEditing(null); setCopyFrom(null); }}
           onSubmitted={() => { setAdding(null); setEditing(null); setCopyFrom(null); load(); }}
         />
@@ -514,6 +578,8 @@ function DraftForm({
   organizerKey,
   activityId,
   copyFromActivityId,
+  approvedClaims,
+  onCreateOrg,
   onClose,
   onSubmitted,
 }: {
@@ -521,6 +587,10 @@ function DraftForm({
   organizerKey: string;
   activityId: string | null;
   copyFromActivityId: string | null;
+  /** Approved claims the user can file under; rendered as a dropdown in 'new' mode. */
+  approvedClaims: Claim[];
+  /** Called when the user clicks "+ Create new organization" inside the dropdown. */
+  onCreateOrg: () => void;
   onClose: () => void;
   onSubmitted: () => void;
 }) {
@@ -528,6 +598,9 @@ function DraftForm({
   const [loading, setLoading] = useState(mode === 'edit' || !!copyFromActivityId);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The org this draft is being filed under. Editable in 'new' mode via the
+  // dropdown; locked to the activity's org in 'edit' mode.
+  const [selectedOrgKey, setSelectedOrgKey] = useState<string>(organizerKey);
 
   useEffect(() => {
     const fetchId = activityId ?? copyFromActivityId;
@@ -599,9 +672,13 @@ function DraftForm({
     setError(null);
     if (!values.title.trim()) { setError('Title is required.'); return; }
     if (!values.startAt) { setError('Start date/time is required.'); return; }
+    if (mode === 'new' && !selectedOrgKey) {
+      setError('Pick an organization or create a new one.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const payload = { ...values, organizerKey };
+      const payload = { ...values, organizerKey: selectedOrgKey };
       const url = mode === 'edit' && activityId
         ? `/api/organizer/events/${activityId}`
         : '/api/organizer/events';
@@ -635,6 +712,32 @@ function DraftForm({
           <p>Loading…</p>
         ) : (
           <form onSubmit={submit} className="add-event-form">
+            {mode === 'new' && (
+              <div className="add-event-field add-event-field-full">
+                <label>Organization *</label>
+                <select
+                  value={selectedOrgKey}
+                  onChange={(e) => {
+                    if (e.target.value === '__new__') {
+                      // Hand control back to the parent to open the
+                      // create-org form. The user comes back to a fresh
+                      // DraftForm afterwards with their new org available.
+                      onCreateOrg();
+                      return;
+                    }
+                    setSelectedOrgKey(e.target.value);
+                  }}
+                >
+                  {approvedClaims.length === 0 && <option value="">— No claimed orgs —</option>}
+                  {approvedClaims.map((c) => (
+                    <option key={c.organizerKey} value={c.organizerKey}>
+                      {c.organizerName ?? c.organizerKey}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Create a new organization…</option>
+                </select>
+              </div>
+            )}
             <div className="add-event-field add-event-field-full">
               <label>Title *</label>
               <input value={values.title} onChange={(e) => set('title', e.target.value)} required />

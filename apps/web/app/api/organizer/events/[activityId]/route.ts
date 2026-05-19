@@ -321,3 +321,50 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ activityI
 
   return NextResponse.json({ ok: true, id: row!.id });
 }
+
+/**
+ * DELETE /api/organizer/events/:activityId
+ * Hard-delete an activity the user is allowed to manage (approved claim or
+ * contact-form submitter). Also cancels any pending drafts attached to it
+ * so they don't end up orphaned in the moderation queue.
+ *
+ * Note: deleting an activity that was originally ingested from a recurring
+ * source (e.g. an iCal feed) will let the next ingestion run re-create it.
+ * Manual / organizer-submitted / contact-submitted events stay gone.
+ */
+export async function DELETE(_request: Request, ctx: { params: Promise<{ activityId: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'sign in first' }, { status: 401 });
+
+  const { activityId } = await ctx.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activityId)) {
+    return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  }
+
+  const access = await checkEditAccess(user.id, user.email, activityId);
+  if (!access) {
+    return NextResponse.json({ error: 'not your event' }, { status: 403 });
+  }
+
+  // Cancel pending drafts attached to this activity (only this user's, so
+  // we don't kill an admin-side draft if one ever exists) before deleting.
+  await db
+    .update(eventDrafts)
+    .set({ status: 'rejected', moderatorNote: 'activity deleted by owner', resolvedAt: new Date() })
+    .where(
+      and(
+        eq(eventDrafts.userId, user.id),
+        eq(eventDrafts.activityId, activityId),
+        eq(eventDrafts.status, 'pending'),
+      ),
+    );
+
+  const deleted = (await sql`
+    DELETE FROM activities WHERE id = ${activityId} RETURNING id
+  `) as unknown as { id: string }[];
+  if (deleted.length === 0) {
+    return NextResponse.json({ error: 'event not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
