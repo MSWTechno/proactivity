@@ -1,9 +1,48 @@
 import { NextResponse } from 'next/server';
-import { db, eventDrafts, organizerClaims, sql } from '@proactivity/db';
+import { db, eventDrafts, sql } from '@proactivity/db';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { isSafeHttpUrl } from '@/lib/url';
 import { notifyAdminOfPending } from '@/lib/email';
+
+/**
+ * A user can edit an activity if EITHER:
+ *   - they have an approved organizer_claim for its organizer_key, OR
+ *   - they were the submitter of the contact_submission this activity
+ *     was created from (raw.contactSubmissionId match by email)
+ *
+ * Returns the reason ('owned' | 'submitted') so callers can decide
+ * whether to expose org-only affordances. null = no access.
+ */
+async function checkEditAccess(
+  userId: string,
+  userEmail: string,
+  activityId: string,
+): Promise<'owned' | 'submitted' | null> {
+  const rows = (await sql`
+    SELECT
+      a.organizer_key,
+      EXISTS (
+        SELECT 1 FROM organizer_claims c
+        WHERE c.user_id = ${userId}
+          AND c.organizer_key = a.organizer_key
+          AND c.status = 'approved'
+      ) AS owned,
+      EXISTS (
+        SELECT 1 FROM contact_submissions cs
+        WHERE cs.id::text = a.raw->>'contactSubmissionId'
+          AND cs.email = ${userEmail}
+      ) AS submitted
+    FROM activities a
+    WHERE a.id = ${activityId}
+    LIMIT 1
+  `) as unknown as Array<{ organizer_key: string | null; owned: boolean; submitted: boolean }>;
+  const r = rows[0];
+  if (!r) return null;
+  if (r.owned) return 'owned';
+  if (r.submitted) return 'submitted';
+  return null;
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -106,25 +145,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ activityId
   const r = rows[0];
   if (!r) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  // The current user must have an approved claim for this activity's organizer.
-  if (!r.organizer_key) {
-    return NextResponse.json({ error: 'event has no organizer' }, { status: 403 });
-  }
-  const claim = (
-    await db
-      .select()
-      .from(organizerClaims)
-      .where(
-        and(
-          eq(organizerClaims.userId, user.id),
-          eq(organizerClaims.organizerKey, r.organizer_key),
-          eq(organizerClaims.status, 'approved'),
-        ),
-      )
-      .limit(1)
-  )[0];
-  if (!claim) {
-    return NextResponse.json({ error: 'not your organization' }, { status: 403 });
+  // Either an approved claim for this org, or being the submitter, grants edit access.
+  const access = await checkEditAccess(user.id, user.email, activityId);
+  if (!access) {
+    return NextResponse.json({ error: 'not your event' }, { status: 403 });
   }
 
   const pendingDraft = (
@@ -203,25 +227,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ activityI
     SELECT organizer_key FROM activities WHERE id = ${activityId} LIMIT 1
   `) as unknown as { organizer_key: string | null }[];
   const orgKey = activity[0]?.organizer_key;
-  if (!orgKey) {
-    return NextResponse.json({ error: 'event not found or no organizer' }, { status: 404 });
+  if (activity.length === 0) {
+    return NextResponse.json({ error: 'event not found' }, { status: 404 });
   }
 
-  const claim = (
-    await db
-      .select()
-      .from(organizerClaims)
-      .where(
-        and(
-          eq(organizerClaims.userId, user.id),
-          eq(organizerClaims.organizerKey, orgKey),
-          eq(organizerClaims.status, 'approved'),
-        ),
-      )
-      .limit(1)
-  )[0];
-  if (!claim) {
-    return NextResponse.json({ error: 'not your organization' }, { status: 403 });
+  const access = await checkEditAccess(user.id, user.email, activityId);
+  if (!access) {
+    return NextResponse.json({ error: 'not your event' }, { status: 403 });
   }
 
   const title = body.title?.trim();
@@ -261,11 +273,17 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ activityI
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // event_drafts.organizer_key is NOT NULL. For submitter-only edits on
+  // an activity with no real org, use a synthetic per-user placeholder.
+  // It never matches a real claim and isn't propagated back to the
+  // activity row on approval.
+  const draftOrganizerKey = orgKey ?? `submitter:${user.id}`;
+
   const [row] = await db
     .insert(eventDrafts)
     .values({
       userId: user.id,
-      organizerKey: orgKey,
+      organizerKey: draftOrganizerKey,
       activityId,
       title,
       description: body.description?.trim() || null,
@@ -293,9 +311,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ activityI
     })
     .returning({ id: eventDrafts.id });
 
+  const orgLabel = body.organizerName?.trim() || orgKey || `submitter ${user.email}`;
   await notifyAdminOfPending({
     kind: 'event_draft',
-    summary: `Edit to "${title}" by ${body.organizerName?.trim() || orgKey}`,
+    summary: `Edit to "${title}" by ${orgLabel}`,
     detail: body.description?.trim() ?? null,
     submitterEmail: user.email,
   });

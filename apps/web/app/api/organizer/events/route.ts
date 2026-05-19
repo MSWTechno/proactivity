@@ -214,7 +214,13 @@ export async function POST(request: Request) {
 /**
  * GET /api/organizer/events?organizerKey=...
  * Returns the current user's drafts (all statuses) for one or all of their
- * organizers, plus the live activities for context. Used by the dashboard.
+ * organizers, plus events they can manage. "Can manage" means EITHER:
+ *   - approved organizer_claim for the activity's organizer_key, OR
+ *   - the activity came from a contact submission with this user's email
+ *     (i.e. they submitted it themselves; tracked via raw.contactSubmissionId)
+ *
+ * The second path lets users edit events they personally submitted via
+ * the public form even when the org isn't claimed (or someone else's).
  */
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -229,30 +235,42 @@ export async function GET(request: Request) {
     .from(organizerClaims)
     .where(and(eq(organizerClaims.userId, user.id), eq(organizerClaims.status, 'approved')));
   const userKeys = claims.map((c) => c.organizerKey);
-  if (userKeys.length === 0) {
-    return NextResponse.json({ drafts: [], events: [] });
-  }
 
   const keysToQuery = filterKey
     ? userKeys.filter((k) => k === filterKey)
     : userKeys;
-  if (keysToQuery.length === 0) {
-    return NextResponse.json({ drafts: [], events: [] });
-  }
 
-  const drafts = await db
-    .select()
-    .from(eventDrafts)
-    .where(eq(eventDrafts.userId, user.id));
+  // Drafts are scoped to claim-owned orgs only — the submitter-edit path
+  // doesn't have its own draft history (those edits run through the same
+  // event_drafts table once they make their first edit).
+  const drafts = keysToQuery.length > 0
+    ? (await db.select().from(eventDrafts).where(eq(eventDrafts.userId, user.id)))
+        .filter((d) => keysToQuery.includes(d.organizerKey))
+    : [];
 
+  // Events the user can manage:
+  //   union of (organizer_key in their claims) and (they submitted it via
+  //   /contact). When ?organizerKey= is set, scope both branches to that.
+  // edit_source distinguishes 'owned' (their org) from 'submitted' (their
+  // own contact submission) so the UI can group them separately.
   const events = (await sql`
-    SELECT
-      id, title, start_at, end_at, venue_name, city, region, url, image_url,
-      cost_min_cents, cost_max_cents, availability, organizer_key,
-      manual_override
-    FROM activities
-    WHERE organizer_key = ANY(${keysToQuery})
-    ORDER BY start_at DESC
+    SELECT DISTINCT ON (a.id)
+      a.id, a.title, a.start_at, a.end_at, a.venue_name, a.city, a.region,
+      a.url, a.image_url, a.cost_min_cents, a.cost_max_cents, a.availability,
+      a.organizer_key, a.organizer_name, a.manual_override,
+      CASE WHEN a.organizer_key = ANY(${keysToQuery as string[]}) THEN 'owned' ELSE 'submitted' END AS edit_source
+    FROM activities a
+    LEFT JOIN contact_submissions cs
+      ON cs.id::text = a.raw->>'contactSubmissionId'
+    WHERE
+      (
+        ${keysToQuery.length > 0 ? sql`a.organizer_key = ANY(${keysToQuery as string[]})` : sql`false`}
+      )
+      OR (
+        cs.email = ${user.email}
+        ${filterKey ? sql`AND a.organizer_key = ${filterKey}` : sql``}
+      )
+    ORDER BY a.id, a.start_at DESC
     LIMIT 200
   `) as unknown as Array<{
     id: string;
@@ -267,43 +285,47 @@ export async function GET(request: Request) {
     cost_min_cents: number | null;
     cost_max_cents: number | null;
     availability: string;
-    organizer_key: string;
+    organizer_key: string | null;
+    organizer_name: string | null;
     manual_override: boolean;
+    edit_source: 'owned' | 'submitted';
   }>;
 
   return NextResponse.json({
-    drafts: drafts
-      .filter((d) => keysToQuery.includes(d.organizerKey))
-      .map((d) => ({
-        id: d.id,
-        organizerKey: d.organizerKey,
-        activityId: d.activityId,
-        title: d.title,
-        startAt: d.startAt,
-        endAt: d.endAt,
-        timezone: d.timezone,
-        status: d.status,
-        moderatorNote: d.moderatorNote,
-        createdAt: d.createdAt,
-        recurrenceFreq: d.recurrenceFreq,
-        recurrenceCount: d.recurrenceCount,
-        recurrenceSkipDates: d.recurrenceSkipDates,
-      })),
-    events: events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      startAt: e.start_at,
-      endAt: e.end_at,
-      venueName: e.venue_name,
-      city: e.city,
-      region: e.region,
-      url: e.url,
-      imageUrl: e.image_url,
-      costMinCents: e.cost_min_cents,
-      costMaxCents: e.cost_max_cents,
-      availability: e.availability,
-      organizerKey: e.organizer_key,
-      manualOverride: e.manual_override,
+    drafts: drafts.map((d) => ({
+      id: d.id,
+      organizerKey: d.organizerKey,
+      activityId: d.activityId,
+      title: d.title,
+      startAt: d.startAt,
+      endAt: d.endAt,
+      timezone: d.timezone,
+      status: d.status,
+      moderatorNote: d.moderatorNote,
+      createdAt: d.createdAt,
+      recurrenceFreq: d.recurrenceFreq,
+      recurrenceCount: d.recurrenceCount,
+      recurrenceSkipDates: d.recurrenceSkipDates,
     })),
+    events: events
+      .sort((a, b) => b.start_at.getTime() - a.start_at.getTime())
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        startAt: e.start_at,
+        endAt: e.end_at,
+        venueName: e.venue_name,
+        city: e.city,
+        region: e.region,
+        url: e.url,
+        imageUrl: e.image_url,
+        costMinCents: e.cost_min_cents,
+        costMaxCents: e.cost_max_cents,
+        availability: e.availability,
+        organizerKey: e.organizer_key,
+        organizerName: e.organizer_name,
+        manualOverride: e.manual_override,
+        editSource: e.edit_source,
+      })),
   });
 }

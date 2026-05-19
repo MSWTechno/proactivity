@@ -50,8 +50,11 @@ interface OrgEvent {
   city: string | null;
   url: string | null;
   availability: string;
-  organizerKey: string;
+  organizerKey: string | null;
+  organizerName: string | null;
   manualOverride: boolean;
+  /** 'owned' = user has approved claim for organizer; 'submitted' = user is the contact-form submitter */
+  editSource: 'owned' | 'submitted';
 }
 
 interface DraftSummary {
@@ -230,9 +233,7 @@ export default function OrganizerDashboard() {
         </div>
       </section>
 
-      {approvedClaims.length > 0 && (
-        <EventsSection approvedClaims={approvedClaims} />
-      )}
+      <EventsSection approvedClaims={approvedClaims} />
 
       {approvedClaims.length > 0 && (
         <UrlSubmissionsSection approvedClaims={approvedClaims} />
@@ -303,8 +304,12 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
         </div>
       )}
 
+      {approvedClaims.length === 0 && events.length === 0 && !loading && (
+        <p className="admin-empty">No events yet. Submit one via the homepage, or claim an organization above to manage its events here.</p>
+      )}
+
       {approvedClaims.map((c) => {
-        const orgEvents = events.filter((e) => e.organizerKey === c.organizerKey);
+        const orgEvents = events.filter((e) => e.organizerKey === c.organizerKey && e.editSource === 'owned');
         return (
           <div key={c.organizerKey} className="organizer-events-block">
             <div className="organizer-events-head">
@@ -369,6 +374,50 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
         );
       })}
 
+      {events.filter((e) => e.editSource === 'submitted').length > 0 && (
+        <div className="organizer-events-block">
+          <div className="organizer-events-head">
+            <strong>Events you submitted</strong>
+            <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Use the homepage "Submit your event" form to add more.</span>
+          </div>
+          <div className="organizer-event-list">
+            {events.filter((e) => e.editSource === 'submitted').map((e) => {
+              const pending = pendingDraftForActivity(e.id);
+              return (
+                <div key={e.id} className="organizer-event-row">
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{e.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                      {new Date(e.startAt).toLocaleString(undefined, {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                        hour: 'numeric', minute: '2-digit',
+                      })}
+                      {e.venueName && ` · ${e.venueName}`}
+                      {e.organizerName && ` · ${e.organizerName}`}
+                    </div>
+                    {pending && (
+                      <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>
+                        ⏳ Edit pending review
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      className="admin-tab"
+                      onClick={() => { setEditing(e); setAdding(null); setCopyFrom(null); }}
+                      style={{ fontSize: 12 }}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {drafts.filter((d) => d.status === 'rejected').length > 0 && (
         <details style={{ marginTop: 16 }}>
           <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--fg-muted)' }}>
@@ -395,7 +444,10 @@ function EventsSection({ approvedClaims }: { approvedClaims: Claim[] }) {
       {(adding || editing) && (
         <DraftForm
           mode={editing ? 'edit' : 'new'}
-          organizerKey={adding ?? editing!.organizerKey}
+          // For submitter-edit on activities without an org, organizerKey
+          // can be null — PATCH ignores the body field and derives from
+          // the activity itself, so any value works.
+          organizerKey={adding ?? editing!.organizerKey ?? ''}
           activityId={editing?.id ?? null}
           copyFromActivityId={copyFrom?.id ?? null}
           onClose={() => { setAdding(null); setEditing(null); setCopyFrom(null); }}
