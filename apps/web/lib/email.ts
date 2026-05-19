@@ -4,9 +4,9 @@
  * we're not in production, just log the email to the console so local dev
  * doesn't need Resend configured.
  *
- * All senders fire-and-forget — failures are logged but never block the
- * admin API response. Moderators shouldn't see a 500 because an email
- * provider blipped.
+ * Callers must await send() — on Vercel serverless, un-awaited promises are
+ * cut off when the function returns and the email is silently dropped.
+ * Provider failures are caught here so a Resend blip never 500s the caller.
  */
 
 import { Resend } from 'resend';

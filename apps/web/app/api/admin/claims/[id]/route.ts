@@ -37,9 +37,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   `) as unknown as { id: string; organizer_key: string; organizer_name: string | null; user_email: string }[];
   if (result.length === 0) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  // Fire-and-forget email — already swallows its own errors.
+  // Awaited (not fire-and-forget): on Vercel serverless, un-awaited promises
+  // are cut off when the function returns and the email is silently dropped.
+  // send() already swallows its own errors so this won't 500 the admin.
   const row = result[0]!;
-  void notifyClaimResolved({
+  await notifyClaimResolved({
     to: row.user_email,
     organizerName: row.organizer_name ?? row.organizer_key,
     action: status,

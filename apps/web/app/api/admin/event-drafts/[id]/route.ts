@@ -60,7 +60,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       .set({ status: 'rejected', moderatorNote: note, resolvedAt: new Date() })
       .where(eq(eventDrafts.id, id));
     if (submitterEmail) {
-      void notifyDraftResolved({
+      await notifyDraftResolved({
         to: submitterEmail,
         title: draft.title ?? '(untitled)',
         action: 'rejected',
@@ -184,7 +184,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   });
 
   if (submitterEmail) {
-    void notifyDraftResolved({
+    await notifyDraftResolved({
       to: submitterEmail,
       title: draft.title ?? '(untitled)',
       action: 'approved',
