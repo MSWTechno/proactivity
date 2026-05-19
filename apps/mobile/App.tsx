@@ -91,7 +91,9 @@ export default function App() {
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
   const [daysAhead, setDaysAhead] = useState(7);
   const [sort, setSort] = useState<'time' | 'distance' | 'cost'>('time');
-  const [radiusKm, setRadiusKm] = useState<10 | 25 | 50 | 100>(25);
+  // Radius captured in miles for the UI; converted to km when calling
+  // the API (server-side filtering stays metric).
+  const [radiusMi, setRadiusMi] = useState<5 | 15 | 30 | 60>(15);
   const [freeOnly, setFreeOnly] = useState(false);
   const [includeUnavailable, setIncludeUnavailable] = useState(false);
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
@@ -297,7 +299,7 @@ export default function App() {
     if (geo.kind === 'ok') {
       p.set('lat', String(geo.lat));
       p.set('lng', String(geo.lng));
-      p.set('radiusKm', String(radiusKm));
+      p.set('radiusKm', String(Math.round(radiusMi * 1.60934)));
     }
     p.set('sort', effectiveSort);
     // daysAhead=0 means "all upcoming"; send the sentinel the API expects.
@@ -307,7 +309,7 @@ export default function App() {
     if (debouncedSearch) p.set('search', debouncedSearch);
     if (activeCategories.size > 0) p.set('category', [...activeCategories].join(','));
     return p.toString();
-  }, [geo, radiusKm, effectiveSort, daysAhead, freeOnly, includeUnavailable, debouncedSearch, activeCategories]);
+  }, [geo, radiusMi, effectiveSort, daysAhead, freeOnly, includeUnavailable, debouncedSearch, activeCategories]);
 
   const fetchActivities = useCallback(async () => {
     setError(null);
@@ -454,21 +456,21 @@ export default function App() {
             </Pressable>
           );
         })}
-        {geo.kind === 'ok' && ([10, 25, 50, 100] as const).map((km) => (
+        {geo.kind === 'ok' && ([5, 15, 30, 60] as const).map((mi) => (
           <Pressable
-            key={`r${km}`}
-            onPress={() => setRadiusKm(km)}
+            key={`r${mi}`}
+            onPress={() => setRadiusMi(mi)}
             style={[
               styles.rangeChip,
               { borderColor: t.border, backgroundColor: t.elev },
-              radiusKm === km && { backgroundColor: t.accent, borderColor: t.accent },
+              radiusMi === mi && { backgroundColor: t.accent, borderColor: t.accent },
             ]}
           >
             <Text style={[
               styles.rangeChipText,
               { color: t.fg },
-              radiusKm === km && { color: '#fff' },
-            ]}>{km} km</Text>
+              radiusMi === mi && { color: '#fff' },
+            ]}>{mi} mi</Text>
           </Pressable>
         ))}
         <Pressable
@@ -699,7 +701,7 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
     minute: '2-digit',
   });
   const place = [activity.venueName, activity.city].filter(Boolean).join(' · ');
-  const distance = activity.distanceMeters != null ? `${(activity.distanceMeters / 1000).toFixed(1)} km` : null;
+  const distance = activity.distanceMeters != null ? `${(activity.distanceMeters * 0.000621371).toFixed(1)} mi` : null;
   const price = formatPrice(activity.costMinCents, activity.costMaxCents, activity.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(activity.availability);
   const showImage = activity.imageUrl && !imgFailed;

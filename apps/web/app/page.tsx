@@ -55,7 +55,9 @@ export default function HomePage() {
   const [geo, setGeo] = useState<GeoState>({ kind: 'idle' });
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [filters, setFilters] = useState({
-    radiusKm: 25,
+    // Radius is captured in miles for the UI; converted to km when calling
+    // the API (the server still works in kilometers/meters internally).
+    radiusMi: 15,
     dateRange: '7' as '1' | '2' | '7' | '14' | '30' | 'all' | 'past',
     sort: 'time' as 'distance' | 'time' | 'cost',
     freeOnly: false,
@@ -182,7 +184,8 @@ export default function HomePage() {
       p.set('lat', String(geo.lat));
       p.set('lng', String(geo.lng));
     }
-    p.set('radiusKm', String(filters.radiusKm));
+    // mi → km for the API. Server-side filtering / distance math stays metric.
+    p.set('radiusKm', String(Math.round(filters.radiusMi * 1.60934)));
     p.set('daysAhead', filters.dateRange);
     p.set('sort', filters.sort);
     if (filters.freeOnly) p.set('freeOnly', '1');
@@ -308,15 +311,15 @@ export default function HomePage() {
             <option value="past">Past events</option>
           </select>
           <select
-            value={String(filters.radiusKm)}
-            onChange={(e) => setFilters((f) => ({ ...f, radiusKm: Number(e.target.value) }))}
+            value={String(filters.radiusMi)}
+            onChange={(e) => setFilters((f) => ({ ...f, radiusMi: Number(e.target.value) }))}
             disabled={geo.kind !== 'ok'}
             aria-label="Distance"
           >
-            <option value="10">Within 10 km</option>
-            <option value="25">Within 25 km</option>
-            <option value="50">Within 50 km</option>
-            <option value="100">Within 100 km</option>
+            <option value="5">Within 5 mi</option>
+            <option value="15">Within 15 mi</option>
+            <option value="30">Within 30 mi</option>
+            <option value="60">Within 60 mi</option>
           </select>
           <label className="toggle">
             <input
@@ -871,7 +874,7 @@ function ActivityCard({
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const place = [a.venueName, a.city].filter(Boolean).join(' · ');
-  const distance = a.distanceMeters != null ? `${(a.distanceMeters / 1000).toFixed(1)} km` : null;
+  const distance = a.distanceMeters != null ? `${(a.distanceMeters * 0.000621371).toFixed(1)} mi` : null;
   const price = formatPrice(a.costMinCents, a.costMaxCents, a.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(a.availability);
   const placeholder = placeholderFor({
