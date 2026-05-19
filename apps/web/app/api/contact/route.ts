@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { isSafeHttpUrl } from '@/lib/url';
 import { notifyAdminOfPending } from '@/lib/email';
+import { extractOgImage } from '@/lib/og-image';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -101,6 +102,16 @@ export async function POST(request: Request) {
       return Number.isFinite(n) && n >= 0 ? n : null;
     };
 
+    // If the submitter didn't paste an image URL, try to extract one from
+    // the event page itself (og:image / twitter:image). Best-effort: a
+    // network/parse failure just leaves imageUrl null and the admin can
+    // override it later. Bounded at ~5s so a slow page doesn't stall the
+    // form response.
+    let imageUrl: string | null = ed.imageUrl?.trim() || null;
+    if (!imageUrl && eventUrl) {
+      imageUrl = await extractOgImage(eventUrl);
+    }
+
     normalizedEventData = {
       title: title.slice(0, 200),
       description: ed.description?.trim().slice(0, 4000) || null,
@@ -110,7 +121,7 @@ export async function POST(request: Request) {
       address: address.slice(0, 300),
       city: ed.city?.trim().slice(0, 120) || null,
       region: ed.region?.trim().slice(0, 60) || null,
-      imageUrl: ed.imageUrl?.trim() || null,
+      imageUrl,
       costMin: num(ed.costMin),
       costMax: num(ed.costMax),
       ageMin: num(ed.ageMin),

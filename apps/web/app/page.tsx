@@ -562,7 +562,6 @@ function SubmitEventModal({
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [region, setRegion] = useState('VA');
-  const [imageUrl, setImageUrl] = useState('');
   const [costMin, setCostMin] = useState('');
   const [costMax, setCostMax] = useState('');
   const [ageMin, setAgeMin] = useState('');
@@ -612,7 +611,6 @@ function SubmitEventModal({
             address: address.trim(),
             city: city.trim() || undefined,
             region: region.trim() || undefined,
-            imageUrl: imageUrl.trim() || undefined,
             costMin: costMin.trim() || undefined,
             costMax: costMax.trim() || undefined,
             ageMin: ageMin.trim() || undefined,
@@ -682,7 +680,9 @@ function SubmitEventModal({
               </label>
             </div>
             <input className="rating-input" type="url" value={eventUrl} onChange={(e) => setEventUrl(e.target.value)} placeholder="Event URL (required, e.g. registration page)" maxLength={500} required />
-            <input className="rating-input" type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Image URL (optional)" maxLength={500} />
+            <p className="add-event-hint" style={{ margin: '-2px 2px 8px', fontSize: 11 }}>
+              We'll grab a preview image from this URL automatically if one's available.
+            </p>
 
             <div className="submit-event-section-label">Where</div>
             <input className="rating-input" type="text" value={venueName} onChange={(e) => setVenueName(e.target.value)} placeholder="Venue name (required)" maxLength={200} required />
