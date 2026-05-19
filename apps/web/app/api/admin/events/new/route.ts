@@ -154,22 +154,48 @@ export async function POST(request: Request) {
   // Activity's organizer_key resolution:
   //   1. If the submitter picked an existing claimed org from their dropdown,
   //      use that key (preClaimedKey) — they're already an approved owner.
-  //   2. Otherwise, if a fresh claim is being queued, reuse any existing
-  //      key for this org name or mint a new user:<slug>-<suffix>.
+  //   2. Otherwise, if a fresh claim is being queued:
+  //      a. First check if the submitter (by email) ALREADY has any claim
+  //         for an org with this name — reuse that key and skip queuing
+  //         a duplicate claim. (Fixes a dedup bug where users who claimed
+  //         "Acme" months ago, then submitted via contact form with the
+  //         "claim with my email" box checked, got a second parallel claim
+  //         like user:acme-abc123 alongside their original user:acme-xyz789.)
+  //      b. Else reuse any existing activity's key for this org name.
+  //      c. Else mint a fresh user:<slug>-<suffix>.
   //   3. Otherwise null (legacy / no claim).
   const slugify = (s: string) =>
     s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   let organizerKey: string | null = preClaimedKey;
+  // If we end up reusing an existing claim, suppress the new-claim insert
+  // below — otherwise we'd create a parallel duplicate claim row.
+  let reusedExistingClaim = false;
   if (!organizerKey && claimContext) {
-    const keyRows = (await pgSql`
-      SELECT organizer_key FROM activities
-      WHERE organizer_name = ${claimContext.org}
-        AND organizer_key IS NOT NULL
+    const existingClaimRows = (await pgSql`
+      SELECT c.organizer_key
+      FROM organizer_claims c
+      JOIN users u ON u.id = c.user_id
+      WHERE u.email = ${claimContext.email}
+        AND c.organizer_name = ${claimContext.org}
+      ORDER BY
+        CASE c.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+        c.created_at
       LIMIT 1
     `) as unknown as { organizer_key: string }[];
-    organizerKey = keyRows[0]?.organizer_key
-      ?? `user:${slugify(claimContext.org).slice(0, 60) || 'org'}-${Math.random().toString(36).slice(2, 8)}`;
+    if (existingClaimRows[0]) {
+      organizerKey = existingClaimRows[0].organizer_key;
+      reusedExistingClaim = true;
+    } else {
+      const keyRows = (await pgSql`
+        SELECT organizer_key FROM activities
+        WHERE organizer_name = ${claimContext.org}
+          AND organizer_key IS NOT NULL
+        LIMIT 1
+      `) as unknown as { organizer_key: string }[];
+      organizerKey = keyRows[0]?.organizer_key
+        ?? `user:${slugify(claimContext.org).slice(0, 60) || 'org'}-${Math.random().toString(36).slice(2, 8)}`;
+    }
   }
 
   const activityValues = {
@@ -230,7 +256,7 @@ export async function POST(request: Request) {
           .where(eq(contactSubmissions.id, contactIdValue));
       }
 
-      if (claimContext && organizerKey) {
+      if (claimContext && organizerKey && !reusedExistingClaim) {
         // Find-or-create the user. Magic-link login uses the same users
         // table, so a future sign-in will pick up this row + the claim.
         const existingUser = await tx
