@@ -495,12 +495,11 @@ export default function ModerationDashboard() {
               )}
               <p className="admin-card-review">{s.message}</p>
               <div className="admin-card-actions">
-                <button
-                  type="button"
+                <Link
+                  href={`/admin/events/new?contactId=${s.id}`}
                   className="admin-btn admin-btn-approve"
-                  disabled={busyId === s.id}
-                  onClick={() => resolveSubmission(s.id, 'added')}
-                >Mark added</button>
+                  style={{ textDecoration: 'none' }}
+                >Add as event</Link>
                 <button
                   type="button"
                   className="admin-btn"

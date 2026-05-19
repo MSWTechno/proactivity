@@ -21,7 +21,7 @@ const FIELDS: Field[] = [
   { name: 'description', label: 'Description', type: 'textarea' },
   { name: 'startAt', label: 'Start (date + time)', type: 'datetime-local', required: true },
   { name: 'endAt', label: 'End (date + time)', type: 'datetime-local' },
-  { name: 'url', label: 'Event URL', type: 'url', placeholder: 'https://…', hint: 'Where users go to register or learn more.' },
+  { name: 'url', label: 'Event URL', type: 'url', placeholder: 'https://…', required: true, hint: 'Where users go to register or learn more. Required — we don\'t publish events without a link.' },
   { name: 'imageUrl', label: 'Image URL', type: 'url', placeholder: 'https://…' },
   { name: 'venueName', label: 'Venue name', placeholder: 'e.g. Horizons Edge Sports Complex' },
   { name: 'address', label: 'Address', placeholder: 'Street, City' },
@@ -49,14 +49,32 @@ const FIELDS: Field[] = [
   { name: 'categories', label: 'Categories', placeholder: 'sports, family, league', hint: 'Comma-separated. Free-form — used for matching.' },
 ];
 
-export default function AddEventForm() {
+interface AddEventFormProps {
+  initialValues?: Record<string, string>;
+  contactMeta?: {
+    id: string;
+    name: string | null;
+    email: string;
+    organization: string | null;
+  };
+}
+
+export default function AddEventForm({ initialValues, contactMeta }: AddEventFormProps) {
   const router = useRouter();
-  const [values, setValues] = useState<Record<string, string>>({ availability: 'onsale' });
+  const [values, setValues] = useState<Record<string, string>>({
+    availability: 'onsale',
+    ...(initialValues ?? {}),
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const set = (name: string, value: string) =>
     setValues((v) => ({ ...v, [name]: value }));
+
+  // Back button + post-save destination: when launched from the moderation
+  // queue ("Mark added"), bounce back there so the admin sees the row
+  // disappear. Otherwise return to the events list as before.
+  const exitHref = contactMeta ? '/admin/moderate' : '/admin/events';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,11 +84,14 @@ export default function AddEventForm() {
       const res = await fetch('/api/admin/events/new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          ...values,
+          ...(contactMeta ? { contactId: contactMeta.id } : {}),
+        }),
       });
       const data = (await res.json()) as { ok?: boolean; id?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      router.push('/admin/events');
+      router.push(exitHref);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -86,13 +107,38 @@ export default function AddEventForm() {
           <Logo size={26} className="wordmark-logo" />proactivity{' '}
           <span style={{ color: 'var(--fg-muted)', fontWeight: 400, fontSize: 18 }}>admin</span>
         </h1>
-        <Link href="/admin/events" className="admin-logout">← Back to events</Link>
+        <Link href={exitHref} className="admin-logout">← Back</Link>
       </header>
 
-      <h2 className="admin-section-title" style={{ marginBottom: 16 }}>Add event manually</h2>
+      <h2 className="admin-section-title" style={{ marginBottom: 16 }}>
+        {contactMeta ? 'Add event from submission' : 'Add event manually'}
+      </h2>
+      {contactMeta && (
+        <div
+          style={{
+            margin: '0 0 20px',
+            padding: '12px 16px',
+            background: 'var(--bg-subtle, #f4f4f8)',
+            border: '1px solid var(--border, #e5e5ea)',
+            borderRadius: 8,
+            fontSize: 14,
+            maxWidth: 600,
+          }}
+        >
+          <strong>From contact submission:</strong>{' '}
+          {contactMeta.name ?? '(no name)'}{' '}
+          <a href={`mailto:${contactMeta.email}`}>&lt;{contactMeta.email}&gt;</a>
+          {contactMeta.organization && <> · {contactMeta.organization}</>}
+          <div style={{ fontSize: 12, color: 'var(--fg-muted, #666)', marginTop: 6 }}>
+            Submission will be marked <strong>added</strong> after you save.
+          </div>
+        </div>
+      )}
       <p className="onboarding-sub" style={{ marginBottom: 24, maxWidth: 600 }}>
-        Use this when an event can't be auto-ingested (private dashboard, paper flyer, phone call from organizer, etc.).
-        Required fields: title and start date/time. Defaults to Harrisonburg coordinates if you leave lat/lng blank.
+        {contactMeta
+          ? 'Fill in date, time, venue, and any other missing fields, then save. The activity is created and the submission is resolved in one step.'
+          : 'Use this when an event can\'t be auto-ingested (private dashboard, paper flyer, phone call from organizer, etc.).'}{' '}
+        Required: title, start, URL. Defaults to Harrisonburg coordinates if you leave lat/lng blank.
       </p>
 
       <form onSubmit={submit} className="add-event-form">
