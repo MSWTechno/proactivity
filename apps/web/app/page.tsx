@@ -552,7 +552,24 @@ function SubmitEventModal({
   const [email, setEmail] = useState(me?.email ?? '');
   const [organization, setOrganization] = useState('');
   const [eventUrl, setEventUrl] = useState('');
-  const [message, setMessage] = useState('');
+  // Structured event fields — mirror the admin AddEventForm so submissions
+  // arrive with all the data the admin needs, no parsing required.
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [startAt, setStartAt] = useState('');
+  const [endAt, setEndAt] = useState('');
+  const [venueName, setVenueName] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [region, setRegion] = useState('VA');
+  const [imageUrl, setImageUrl] = useState('');
+  const [costMin, setCostMin] = useState('');
+  const [costMax, setCostMax] = useState('');
+  const [ageMin, setAgeMin] = useState('');
+  const [ageMax, setAgeMax] = useState('');
+  const [categories, setCategories] = useState('');
+  const [notes, setNotes] = useState('');
+  const [wantsOrgClaim, setWantsOrgClaim] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -563,10 +580,17 @@ function SubmitEventModal({
       setError('A valid email is required.');
       return;
     }
-    if (message.trim().length < 10) {
-      setError('Tell us a bit about the event (10+ characters).');
-      return;
+    if (!title.trim()) return setError('Event title is required.');
+    if (!startAt.trim()) return setError('Start date and time are required.');
+    if (!eventUrl.trim()) return setError('Event URL is required — we don\'t publish events without a link.');
+    if (!venueName.trim()) return setError('Venue name is required.');
+    if (!address.trim()) return setError('Address is required.');
+    if (wantsOrgClaim && !organization.trim()) {
+      return setError('To claim an organization, please enter its name in the "Organization or venue" field.');
     }
+    // notes is the free-text fallback / extra-info field; combined with the
+    // structured data into `message` for the existing 10-char minimum check.
+    const message = (notes.trim() || `${title.trim()} at ${venueName.trim()}`).slice(0, 4000);
     setSubmitting(true);
     try {
       const res = await fetch('/api/contact', {
@@ -576,8 +600,25 @@ function SubmitEventModal({
           name: name.trim() || undefined,
           email: email.trim(),
           organization: organization.trim() || undefined,
-          eventUrl: eventUrl.trim() || undefined,
-          message: message.trim(),
+          eventUrl: eventUrl.trim(),
+          message,
+          wantsOrgClaim,
+          eventData: {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            startAt: startAt.trim(),
+            endAt: endAt.trim() || undefined,
+            venueName: venueName.trim(),
+            address: address.trim(),
+            city: city.trim() || undefined,
+            region: region.trim() || undefined,
+            imageUrl: imageUrl.trim() || undefined,
+            costMin: costMin.trim() || undefined,
+            costMax: costMax.trim() || undefined,
+            ageMin: ageMin.trim() || undefined,
+            ageMax: ageMax.trim() || undefined,
+            categories: categories.trim() || undefined,
+          },
         }),
       });
       if (!res.ok) {
@@ -594,36 +635,114 @@ function SubmitEventModal({
 
   return (
     <div className="onboarding-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="submit-title">
-      <div className="onboarding-card" onClick={(e) => e.stopPropagation()}>
+      <div className="onboarding-card submit-event-card" onClick={(e) => e.stopPropagation()}>
         {submitted ? (
           <>
             <h2 className="onboarding-title">Thanks — got it!</h2>
             <p className="onboarding-sub">
               Your event will be reviewed and approved as soon as possible. We'll reach out to <strong>{email}</strong> if we have any questions.
             </p>
+            {wantsOrgClaim && (
+              <p className="onboarding-sub" style={{ fontSize: 13, marginTop: 8 }}>
+                We've also queued your request to claim <strong>{organization || 'the organization'}</strong>. Once approved, you'll be able to add and edit events directly.
+              </p>
+            )}
             <button type="button" className="btn-primary" onClick={onClose}>Close</button>
           </>
         ) : (
           <>
             <h2 id="submit-title" className="onboarding-title">Submit your event</h2>
             <p className="onboarding-sub">
-              Run a venue, host meetups, or organize community events? Tell us about it and we'll add it to the calendar.
+              Run a venue, host meetups, or organize community events? Fill this out and we'll get it on the calendar after a quick review.
             </p>
+
+            <div className="submit-event-section-label">Your info</div>
             <input className="rating-input" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" maxLength={120} />
-            <input className="rating-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (required)" maxLength={200} />
+            <input className="rating-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email (required)" maxLength={200} required />
             <input className="rating-input" type="text" value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="Organization or venue" maxLength={200} />
-            <input className="rating-input" type="url" value={eventUrl} onChange={(e) => setEventUrl(e.target.value)} placeholder="Event URL (optional)" maxLength={500} />
+
+            <div className="submit-event-section-label">Event details</div>
+            <input className="rating-input" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title (required)" maxLength={200} required />
             <textarea
               className="rating-review"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               maxLength={4000}
-              placeholder="Tell us about your event — when, where, what to expect (required)"
-              rows={5}
+              placeholder="What is it? (description shown to attendees)"
+              rows={3}
             />
+            <div className="submit-event-row">
+              <label className="submit-event-field">
+                <span>Start (required)</span>
+                <input className="rating-input" type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required />
+              </label>
+              <label className="submit-event-field">
+                <span>End (optional)</span>
+                <input className="rating-input" type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+              </label>
+            </div>
+            <input className="rating-input" type="url" value={eventUrl} onChange={(e) => setEventUrl(e.target.value)} placeholder="Event URL (required, e.g. registration page)" maxLength={500} required />
+            <input className="rating-input" type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Image URL (optional)" maxLength={500} />
+
+            <div className="submit-event-section-label">Where</div>
+            <input className="rating-input" type="text" value={venueName} onChange={(e) => setVenueName(e.target.value)} placeholder="Venue name (required)" maxLength={200} required />
+            <input className="rating-input" type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street address (required)" maxLength={300} required />
+            <div className="submit-event-row">
+              <label className="submit-event-field">
+                <span>City</span>
+                <input className="rating-input" type="text" value={city} onChange={(e) => setCity(e.target.value)} maxLength={120} />
+              </label>
+              <label className="submit-event-field" style={{ maxWidth: 100 }}>
+                <span>State</span>
+                <input className="rating-input" type="text" value={region} onChange={(e) => setRegion(e.target.value)} maxLength={60} />
+              </label>
+            </div>
+
+            <div className="submit-event-section-label">Extras (optional)</div>
+            <div className="submit-event-row">
+              <label className="submit-event-field">
+                <span>Cost min ($)</span>
+                <input className="rating-input" type="text" inputMode="decimal" value={costMin} onChange={(e) => setCostMin(e.target.value)} />
+              </label>
+              <label className="submit-event-field">
+                <span>Cost max ($)</span>
+                <input className="rating-input" type="text" inputMode="decimal" value={costMax} onChange={(e) => setCostMax(e.target.value)} />
+              </label>
+            </div>
+            <div className="submit-event-row">
+              <label className="submit-event-field">
+                <span>Age min</span>
+                <input className="rating-input" type="text" inputMode="numeric" value={ageMin} onChange={(e) => setAgeMin(e.target.value)} />
+              </label>
+              <label className="submit-event-field">
+                <span>Age max</span>
+                <input className="rating-input" type="text" inputMode="numeric" value={ageMax} onChange={(e) => setAgeMax(e.target.value)} />
+              </label>
+            </div>
+            <input className="rating-input" type="text" value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="Categories (comma-separated, e.g. family, music, free)" maxLength={300} />
+            <textarea
+              className="rating-review"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              maxLength={4000}
+              placeholder="Anything else we should know? (optional)"
+              rows={3}
+            />
+
+            <label className="submit-event-claim">
+              <input
+                type="checkbox"
+                checked={wantsOrgClaim}
+                onChange={(e) => setWantsOrgClaim(e.target.checked)}
+              />
+              <span>
+                I'm the organizer — claim <strong>{organization.trim() || 'this organization'}</strong> with my email so I can add and edit events directly in the future.
+              </span>
+            </label>
+
             {error && <p className="rating-error">{error}</p>}
             <button type="button" className="btn-primary" disabled={submitting} onClick={submit}>
-              {submitting ? 'Sending…' : 'Send'}
+              {submitting ? 'Sending…' : 'Submit event'}
             </button>
             <button type="button" className="onboarding-skip" onClick={onClose}>Cancel</button>
           </>

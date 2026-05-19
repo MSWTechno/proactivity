@@ -569,6 +569,55 @@ main {
 }
 .onboarding-skip:hover { color: var(--fg); }
 
+/* -------- submit-event modal (extended onboarding-card) -------- */
+.submit-event-card {
+  max-width: 640px;
+}
+.submit-event-section-label {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+}
+.submit-event-section-label:first-of-type { margin-top: 4px; }
+.submit-event-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.submit-event-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.submit-event-field > span {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding-left: 2px;
+}
+.submit-event-field .rating-input { margin-bottom: 0; }
+.submit-event-claim {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 12px;
+  background: var(--bg-subtle, rgba(109, 40, 217, 0.05));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.submit-event-claim input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 /* -------- rating display + modal -------- */
 .rating-summary {
   font-size: 12px;

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, activities, sources, contactSubmissions } from '@proactivity/db';
+import { db, activities, sources, contactSubmissions, users, organizerClaims, sql as pgSql } from '@proactivity/db';
 import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
 import { isSafeHttpUrl } from '@/lib/url';
@@ -19,8 +19,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  *
  * If `contactId` is provided, the activity insert and the contact
  * submission's status flip to 'added' happen in a single transaction.
- * This is how "Mark added" on the moderation queue actually produces an
- * activity instead of just hiding the submission.
+ * Additionally, if that submission had wants_org_claim=true, the same
+ * transaction find-or-creates a user by the submitter's email and queues
+ * a 'pending' organizer_claim for them — the admin still has to approve
+ * the claim separately in the claims queue, but the row is materialized
+ * so the submitter doesn't have to re-do it.
  */
 export async function POST(request: Request) {
   const guard = await requireAdmin();
@@ -63,6 +66,31 @@ export async function POST(request: Request) {
   // contactId must be a valid uuid if provided.
   if (body.contactId !== undefined && body.contactId !== null && body.contactId !== '' && !UUID_RE.test(body.contactId)) {
     return NextResponse.json({ error: 'invalid contactId' }, { status: 400 });
+  }
+
+  // If this came from a contact submission, look up wants_org_claim + the
+  // submitter's email/name so the transaction below can also queue the
+  // organizer claim atomically.
+  const contactIdValue = body.contactId?.trim() || null;
+  let claimContext: { email: string; name: string | null; org: string } | null = null;
+  if (contactIdValue) {
+    const subRows = await db
+      .select({
+        email: contactSubmissions.email,
+        name: contactSubmissions.name,
+        organization: contactSubmissions.organization,
+        wantsOrgClaim: contactSubmissions.wantsOrgClaim,
+      })
+      .from(contactSubmissions)
+      .where(eq(contactSubmissions.id, contactIdValue))
+      .limit(1);
+    const sub = subRows[0];
+    if (sub?.wantsOrgClaim) {
+      const claimOrg = sub.organization?.trim() || body.organizerName?.trim() || '';
+      if (claimOrg) {
+        claimContext = { email: sub.email, name: sub.name, org: claimOrg };
+      }
+    }
   }
 
   // Find-or-create the "Manual entries" source.
@@ -113,6 +141,25 @@ export async function POST(request: Request) {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // If a claim is being created alongside, the activity needs an
+  // organizer_key so the claim has something to reference. Reuse the
+  // existing key for this org name if any activity already has one,
+  // otherwise mint a fresh user:<slug>-<suffix>.
+  const slugify = (s: string) =>
+    s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  let organizerKey: string | null = null;
+  if (claimContext) {
+    const keyRows = (await pgSql`
+      SELECT organizer_key FROM activities
+      WHERE organizer_name = ${claimContext.org}
+        AND organizer_key IS NOT NULL
+      LIMIT 1
+    `) as unknown as { organizer_key: string }[];
+    organizerKey = keyRows[0]?.organizer_key
+      ?? `user:${slugify(claimContext.org).slice(0, 60) || 'org'}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   const activityValues = {
     sourceId: manual!.id,
     sourceEventId,
@@ -139,21 +186,21 @@ export async function POST(request: Request) {
     isVirtual: false,
     organizerName: body.organizerName?.trim() || null,
     organizerUrl: body.organizerUrl?.trim() || null,
-    organizerKey: null,
+    organizerKey,
     url: eventUrl,
     imageUrl: body.imageUrl?.trim() || null,
     categories: categoryList.length > 0 ? categoryList : null,
     raw: {
       source: 'admin-manual',
       createdBy: 'admin',
-      ...(body.contactId ? { contactSubmissionId: body.contactId } : {}),
+      ...(contactIdValue ? { contactSubmissionId: contactIdValue } : {}),
     },
   };
 
   // Atomic: create the activity AND (if launched from a contact submission)
-  // flip that submission to 'added' in the same transaction. Either both
-  // happen or neither — no more "I clicked added but no event was created".
-  const contactId = body.contactId?.trim() || null;
+  // flip that submission to 'added'. If the submission requested an
+  // organizer claim, also find-or-create the submitter as a user and
+  // queue a pending organizer_claim. Either everything commits or nothing.
   let activityId: string;
   try {
     activityId = await db.transaction(async (tx) => {
@@ -164,12 +211,41 @@ export async function POST(request: Request) {
         .returning({ id: activities.id });
       if (inserted.length === 0) throw new Error('CONFLICT');
 
-      if (contactId) {
+      if (contactIdValue) {
         await tx
           .update(contactSubmissions)
           .set({ status: 'added', resolvedAt: new Date() })
-          .where(eq(contactSubmissions.id, contactId));
+          .where(eq(contactSubmissions.id, contactIdValue));
       }
+
+      if (claimContext && organizerKey) {
+        // Find-or-create the user. Magic-link login uses the same users
+        // table, so a future sign-in will pick up this row + the claim.
+        const existingUser = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, claimContext.email))
+          .limit(1);
+        const userId = existingUser[0]?.id
+          ?? (await tx
+            .insert(users)
+            .values({ email: claimContext.email, name: claimContext.name })
+            .returning({ id: users.id }))[0]!.id;
+
+        // Unique (user_id, organizer_key); if they already claimed this
+        // org somehow, leave the prior claim untouched.
+        await tx
+          .insert(organizerClaims)
+          .values({
+            userId,
+            organizerKey,
+            organizerName: claimContext.org,
+            note: `Auto-created from contact submission ${contactIdValue}`,
+            status: 'pending',
+          })
+          .onConflictDoNothing();
+      }
+
       return inserted[0]!.id;
     });
   } catch (e) {

@@ -27,7 +27,26 @@ interface NewSubmission {
   organization: string | null;
   message: string;
   eventUrl: string | null;
+  eventData: SubmissionEventData | null;
+  wantsOrgClaim: boolean;
   createdAt: string;
+}
+
+interface SubmissionEventData {
+  title?: string;
+  description?: string | null;
+  startAt?: string;
+  endAt?: string | null;
+  venueName?: string;
+  address?: string;
+  city?: string | null;
+  region?: string | null;
+  imageUrl?: string | null;
+  costMin?: number | null;
+  costMax?: number | null;
+  ageMin?: number | null;
+  ageMax?: number | null;
+  categories?: string | null;
 }
 interface PendingClaim {
   id: string;
@@ -487,13 +506,26 @@ export default function ModerationDashboard() {
                 </span>
                 <span className="admin-card-meta">{new Date(s.createdAt).toLocaleString()}</span>
               </div>
-              {s.organization && <p className="admin-card-context"><strong>{s.organization}</strong></p>}
-              {s.eventUrl && (
+              {s.organization && (
                 <p className="admin-card-context">
-                  <a href={s.eventUrl} target="_blank" rel="noreferrer">{s.eventUrl}</a>
+                  <strong>{s.organization}</strong>
+                  {s.wantsOrgClaim && (
+                    <span className="admin-tag" style={{ marginLeft: 8 }}>claim requested</span>
+                  )}
                 </p>
               )}
-              <p className="admin-card-review">{s.message}</p>
+              {s.eventData ? (
+                <SubmissionEventDataView ed={s.eventData} eventUrl={s.eventUrl} message={s.message} />
+              ) : (
+                <>
+                  {s.eventUrl && (
+                    <p className="admin-card-context">
+                      <a href={s.eventUrl} target="_blank" rel="noreferrer">{s.eventUrl}</a>
+                    </p>
+                  )}
+                  <p className="admin-card-review">{s.message}</p>
+                </>
+              )}
               <div className="admin-card-actions">
                 <Link
                   href={`/admin/events/new?contactId=${s.id}`}
@@ -518,6 +550,68 @@ export default function ModerationDashboard() {
         </div>
       </section>
     </main>
+  );
+}
+
+function SubmissionEventDataView({
+  ed,
+  eventUrl,
+  message,
+}: {
+  ed: SubmissionEventData;
+  eventUrl: string | null;
+  message: string;
+}) {
+  const start = ed.startAt ? new Date(ed.startAt) : null;
+  const end = ed.endAt ? new Date(ed.endAt) : null;
+  const fmt = (d: Date | null) =>
+    d && !isNaN(d.getTime())
+      ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : null;
+  const cityRegion = [ed.city, ed.region].filter(Boolean).join(', ');
+  const venueLine = [ed.venueName, ed.address, cityRegion].filter(Boolean).join(' · ');
+  const cost =
+    ed.costMin != null && ed.costMax != null && ed.costMax !== ed.costMin
+      ? `$${ed.costMin}–$${ed.costMax}`
+      : ed.costMin != null
+        ? `$${ed.costMin}`
+        : null;
+  const ages =
+    ed.ageMin != null && ed.ageMax != null
+      ? `Ages ${ed.ageMin}–${ed.ageMax}`
+      : ed.ageMin != null
+        ? `Ages ${ed.ageMin}+`
+        : ed.ageMax != null
+          ? `Up to age ${ed.ageMax}`
+          : null;
+
+  return (
+    <div className="admin-submission-event">
+      {ed.title && <p className="admin-card-title-line"><strong>{ed.title}</strong></p>}
+      {start && (
+        <p className="admin-card-context">
+          🗓 {fmt(start)}{end ? ` → ${fmt(end)}` : ''}
+        </p>
+      )}
+      {venueLine && <p className="admin-card-context">📍 {venueLine}</p>}
+      {eventUrl && (
+        <p className="admin-card-context">
+          🔗 <a href={eventUrl} target="_blank" rel="noreferrer">{eventUrl}</a>
+        </p>
+      )}
+      {(cost || ages || ed.categories) && (
+        <p className="admin-card-context" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+          {[cost, ages, ed.categories].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {ed.description && <p className="admin-card-review">{ed.description}</p>}
+      {message && message !== ed.description && (
+        <details style={{ margin: '4px 0', fontSize: 12 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--fg-muted)' }}>Submitter notes</summary>
+          <p className="admin-card-review" style={{ marginTop: 4 }}>{message}</p>
+        </details>
+      )}
+    </div>
   );
 }
 

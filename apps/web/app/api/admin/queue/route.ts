@@ -53,7 +53,8 @@ export async function GET() {
   }>;
 
   const contactRows = (await sql`
-    SELECT id, name, email, organization, message, event_url, created_at
+    SELECT id, name, email, organization, message, event_url,
+           event_data, wants_org_claim, created_at
     FROM contact_submissions
     WHERE status = 'new'
     ORDER BY created_at DESC
@@ -65,6 +66,8 @@ export async function GET() {
     organization: string | null;
     message: string;
     event_url: string | null;
+    event_data: Record<string, unknown> | null;
+    wants_org_claim: boolean;
     created_at: Date;
   }>;
 
@@ -113,6 +116,8 @@ export async function GET() {
       organization: s.organization,
       message: s.message,
       eventUrl: s.event_url,
+      eventData: s.event_data,
+      wantsOrgClaim: s.wants_org_claim,
       createdAt: s.created_at,
     })),
     claims: claimRows.map((c) => ({

@@ -199,9 +199,21 @@ export const users = pgTable(
 );
 
 /**
- * "Submit your event" form submissions from organizers. Admin reviews
- * (via CLI for now) and either adds them as a proper source/activity or
- * rejects with a note.
+ * "Submit your event" form submissions from organizers, and general
+ * "Contact us" inquiries. Admin reviews in /admin/moderate and either
+ * adds them as a proper activity (via "Add as event") or rejects.
+ *
+ * When the submission came from the structured event form, `event_data`
+ * holds the typed fields (title, start, venue, etc.) so the admin's
+ * "Add as event" flow can prefill the activity form fully — not just
+ * the title/description. Older submissions have event_data=null and
+ * fall back to message text.
+ *
+ * `wants_org_claim` is set when the submitter checked "Claim this
+ * organization with my email" on the public form. The claim is only
+ * actually created when the admin approves the event in /admin/events/new
+ * (atomic with the activity insert) — so rejected events don't leave
+ * orphan claims in the queue.
  */
 export const contactSubmissions = pgTable(
   'contact_submissions',
@@ -216,6 +228,8 @@ export const contactSubmissions = pgTable(
     // 'new' | 'replied' | 'added' | 'rejected'
     status: text('status').notNull().default('new'),
     notes: text('notes'),
+    eventData: jsonb('event_data'),
+    wantsOrgClaim: boolean('wants_org_claim').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   },
