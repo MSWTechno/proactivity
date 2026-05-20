@@ -214,11 +214,23 @@ export default function HomePage() {
       return;
     }
     setGeo({ kind: 'loading' });
+    // Guard against a stale callback overwriting state — if the user picks
+    // a preset (or arrives via ?location= deep-link) while geolocation is
+    // still in flight, the async callback would otherwise replace the
+    // preset's coords with the browser's actual location once it returns.
+    let cancelled = false;
     navigator.geolocation.getCurrentPosition(
-      (pos) => setGeo({ kind: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'browser' }),
-      () => setGeo({ kind: 'denied' }),
+      (pos) => {
+        if (cancelled) return;
+        setGeo({ kind: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'browser' });
+      },
+      () => {
+        if (cancelled) return;
+        setGeo({ kind: 'denied' });
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 },
     );
+    return () => { cancelled = true; };
   }, [locationChoice]);
 
   const pickLocation = (choice: LocationChoice) => {
