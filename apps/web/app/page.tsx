@@ -1007,20 +1007,11 @@ function ActivityCard({
   });
   const showImage = a.imageUrl && !imgFailed;
 
-  const handleClick = () => {
-    // Fire-and-forget — track popularity, don't block the click.
-    fetch('/api/activities/click', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: a.id }),
-      keepalive: true,
-    }).catch(() => {
-      /* ignore */
-    });
-  };
-
+  // Card now navigates to our own /event/[id] detail page (SEO + retention).
+  // Click tracking moved to the detail page's "Get tickets" button, which
+  // hits /api/activities/[id]/go (server-side increment + redirect).
   return (
-    <a className="card" href={a.url ?? '#'} target="_blank" rel="noreferrer" onClick={handleClick}>
+    <a className="card" href={`/event/${a.id}`}>
       {showImage ? (
         <img
           className="card-img"
