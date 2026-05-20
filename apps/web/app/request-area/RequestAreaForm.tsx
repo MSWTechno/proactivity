@@ -112,7 +112,7 @@ export function RequestAreaForm() {
           type="text"
           value={regionText}
           onChange={(e) => setRegionText(e.target.value)}
-          placeholder="e.g. Charlottesville, VA  or  Asheville, NC"
+          placeholder="e.g. Charlottesville, VA  (other states also OK as future-signal)"
           maxLength={200}
           required
         />

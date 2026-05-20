@@ -1424,7 +1424,7 @@ function Empty({ searchActive, onClear }: { searchActive: boolean; onClear: () =
       <p>
         {searchActive
           ? 'Try clearing some filters or expanding the date range.'
-          : 'No events in this window — try widening the date range, or tell us to launch in your area.'}
+          : 'No events in this window — try widening the date range, or tell us to launch in your area (currently focused on Virginia).'}
       </p>
       {searchActive ? (
         <button type="button" className="btn-primary" onClick={onClear}>

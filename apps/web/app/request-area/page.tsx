@@ -27,6 +27,21 @@ export default function RequestAreaPage() {
         to bootstrap, and we'll prioritize.
       </p>
 
+      <p
+        style={{
+          margin: '16px 0 24px',
+          padding: '12px 14px',
+          background: 'var(--warning-bg, rgba(245, 158, 11, 0.1))',
+          border: '1px solid var(--warning-fg, #d97706)',
+          borderRadius: 8,
+          fontSize: 14,
+        }}
+      >
+        <strong>Heads up:</strong> we're currently only launching in <strong>Virginia</strong>.
+        Outside VA? Submit anyway — we use these as signal for where to expand next, and we'll
+        email you when your area is on the roadmap.
+      </p>
+
       <RequestAreaForm />
 
       <p className="disclaimer" style={{ marginTop: 32 }}>
