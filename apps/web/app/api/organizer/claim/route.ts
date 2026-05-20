@@ -29,11 +29,21 @@ export async function POST(request: Request) {
   }
   const note = body.note?.trim().slice(0, 1000) ?? null;
 
-  // Look up organizer_name from any activity row for context.
-  const nameRow = (await sql`
-    SELECT organizer_name FROM activities WHERE organizer_key = ${key} LIMIT 1
-  `) as unknown as { organizer_name: string | null }[];
-  const organizerName = nameRow[0]?.organizer_name ?? null;
+  // Look up organizer_name + organizer_url from any activity row so we can
+  // (a) snapshot the name on the claim and (b) attempt domain-match auto-
+  // approval (if the claimant's email domain matches the organizer URL's
+  // domain, they get approved on the spot — no admin review needed).
+  const orgRow = (await sql`
+    SELECT organizer_name, organizer_url
+    FROM activities
+    WHERE organizer_key = ${key} AND organizer_name IS NOT NULL
+    LIMIT 1
+  `) as unknown as { organizer_name: string | null; organizer_url: string | null }[];
+  const organizerName = orgRow[0]?.organizer_name ?? null;
+  const organizerUrl = orgRow[0]?.organizer_url ?? null;
+
+  const autoApprove = shouldAutoApprove(user.email, organizerUrl);
+  const status: 'pending' | 'approved' = autoApprove ? 'approved' : 'pending';
 
   try {
     const [row] = await db
@@ -43,18 +53,21 @@ export async function POST(request: Request) {
         organizerKey: key,
         organizerName,
         note,
-        status: 'pending',
+        status,
+        ...(autoApprove ? { resolvedAt: new Date() } : {}),
       })
       .returning({ id: organizerClaims.id });
 
-    await notifyAdminOfPending({
-      kind: 'claim',
-      summary: `Claim for "${organizerName ?? key}"`,
-      detail: note,
-      submitterEmail: user.email,
-    });
+    if (!autoApprove) {
+      await notifyAdminOfPending({
+        kind: 'claim',
+        summary: `Claim for "${organizerName ?? key}"`,
+        detail: note,
+        submitterEmail: user.email,
+      });
+    }
 
-    return NextResponse.json({ ok: true, id: row!.id });
+    return NextResponse.json({ ok: true, id: row!.id, status, autoApproved: autoApprove });
   } catch (e) {
     // Unique violation on (user, organizer_key)
     if (e instanceof Error && /duplicate key|unique/.test(e.message)) {
@@ -65,6 +78,47 @@ export async function POST(request: Request) {
     }
     throw e;
   }
+}
+
+// Free webmail + disposable / burner mail services — never treat as
+// proof of ownership. user@gmail.com claiming acme.com doesn't prove
+// they're at Acme, and user@mailinator.com claiming anything is spam.
+const FREE_EMAIL_DOMAINS = new Set([
+  // mainstream consumer webmail
+  'gmail.com', 'yahoo.com', 'ymail.com', 'rocketmail.com',
+  'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com',
+  'aol.com',
+  'proton.me', 'protonmail.com', 'pm.me',
+  'fastmail.com', 'mail.com', 'gmx.com', 'gmx.us',
+  'zoho.com', 'yandex.com', 'tutanota.com', 'tuta.io',
+  // disposable / temporary mail
+  'mailinator.com', 'yopmail.com', 'guerrillamail.com', '10minutemail.com',
+  'tempmail.com', 'temp-mail.org', 'throwaway.email', 'dispostable.com',
+  'sharklasers.com', 'getnada.com', 'trashmail.com', 'maildrop.cc',
+  'spamgourmet.com', 'mintemail.com', 'fakeinbox.com',
+]);
+
+/**
+ * Domain-match auto-approval: claim email's domain must equal the
+ * organizer URL's registrable domain. Skipped for free-mail domains
+ * since user@gmail.com isn't proof of owning anything. Best-effort —
+ * uses last-two-labels as the registrable domain (good enough for
+ * common .com/.org; doesn't handle .co.uk-style suffixes but the
+ * false-negative case just falls through to admin review).
+ */
+function shouldAutoApprove(email: string, organizerUrl: string | null): boolean {
+  if (!organizerUrl) return false;
+  const emailDomain = email.split('@')[1]?.toLowerCase().trim();
+  if (!emailDomain || FREE_EMAIL_DOMAINS.has(emailDomain)) return false;
+  let urlDomain: string;
+  try {
+    urlDomain = new URL(organizerUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const base = (d: string) => d.split('.').slice(-2).join('.');
+  return base(emailDomain) === base(urlDomain);
 }
 
 /**

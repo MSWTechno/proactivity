@@ -1329,8 +1329,13 @@ function ClaimForm({ onDone }: { onDone: () => void }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ organizerKey: selected.key, note: note.trim() || undefined }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as { ok?: boolean; autoApproved?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      if (data.autoApproved) {
+        alert(`Approved! Your email domain matched ${selected.name ?? selected.key}'s website domain, so you can manage their events right away.`);
+      } else {
+        alert(`Claim submitted! An admin will review it shortly. We'll email you when it's approved.`);
+      }
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
