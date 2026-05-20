@@ -30,6 +30,7 @@ export async function GET(request: Request) {
   // ----- resolve geo -----
   let lat: number;
   let lng: number;
+  let presetId: string | undefined;
   const presetParam = url.searchParams.get('location')?.trim() ?? '';
   if (presetParam) {
     const preset = findPreset(presetParam);
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
     }
     lat = preset.lat;
     lng = preset.lng;
+    presetId = preset.id;
   } else {
     lat = parseFloat(url.searchParams.get('lat') ?? '');
     lng = parseFloat(url.searchParams.get('lng') ?? '');
@@ -92,7 +94,7 @@ export async function GET(request: Request) {
     organizer_name: string | null;
   }>;
 
-  return htmlResponse(renderPage(rows, { theme, days }));
+  return htmlResponse(renderPage(rows, { theme, days, presetId, lat, lng }));
 }
 
 // ----- helpers -----
@@ -145,16 +147,26 @@ function renderPage(
     availability: string;
     organizer_name: string | null;
   }>,
-  opts: { theme: 'auto' | 'light' | 'dark'; days: number },
+  opts: { theme: 'auto' | 'light' | 'dark'; days: number; presetId?: string; lat?: number; lng?: number },
 ): string {
   // CTA pointing back to proactivity.app — lets viewers either submit
   // their own event or browse the full feed beyond what this embed shows.
+  // Forward the preset (or lat/lng) so the homepage lands them in the same
+  // region they were just browsing in the embed.
+  const passLoc = new URLSearchParams();
+  if (opts.presetId) passLoc.set('location', opts.presetId);
+  else if (opts.lat != null && opts.lng != null) {
+    passLoc.set('lat', String(opts.lat));
+    passLoc.set('lng', String(opts.lng));
+  }
+  const browseQs = passLoc.toString() ? `?${passLoc.toString()}&utm_source=embed` : '?utm_source=embed';
+  const submitQs = passLoc.toString() ? `?submit=1&${passLoc.toString()}&utm_source=embed` : '?submit=1&utm_source=embed';
   const footer = `
     <div class="pa-footer">
-      <a href="https://proactivity.app/?utm_source=embed" target="_blank" rel="noopener" class="pa-footer-link">
+      <a href="https://proactivity.app/${browseQs}" target="_blank" rel="noopener" class="pa-footer-link">
         Browse more events
       </a>
-      <a href="https://proactivity.app/?submit=1&utm_source=embed" target="_blank" rel="noopener" class="pa-footer-cta">
+      <a href="https://proactivity.app/${submitQs}" target="_blank" rel="noopener" class="pa-footer-cta">
         + Submit your event
       </a>
     </div>

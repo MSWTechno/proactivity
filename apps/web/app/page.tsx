@@ -86,15 +86,29 @@ export default function HomePage() {
   const [me, setMe] = useState<{ id: string; email: string; name: string | null } | null>(null);
   const [noAds, setNoAds] = useState(false);
 
-  // Open the submit modal automatically when arriving from an embed CTA
-  // (proactivity.app/?submit=1). Strips the param from the URL so a
-  // refresh doesn't keep re-opening the modal.
+  // Handle embed deep-links — proactivity.app/?location=lake-anna or
+  // ?submit=1 etc. Set the appropriate state, then strip the params so
+  // a refresh doesn't keep re-firing them. Runs once on mount, before
+  // the location-choice / geo effects below so the preset is applied
+  // ahead of the browser-geo fallback.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const sp = new URLSearchParams(window.location.search);
+    let mutated = false;
     if (sp.get('submit') === '1') {
       setShowSubmitForm(true);
       sp.delete('submit');
+      mutated = true;
+    }
+    const locParam = sp.get('location')?.trim();
+    if (locParam && LOCATION_PRESETS.some((p) => p.id === locParam)) {
+      const choice: LocationChoice = { kind: 'preset', id: locParam as PresetId };
+      setLocationChoice(choice);
+      try { localStorage.setItem(STORAGE_LOCATION, JSON.stringify(choice)); } catch { /* ignore */ }
+      sp.delete('location');
+      mutated = true;
+    }
+    if (mutated) {
       const newSearch = sp.toString();
       window.history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
     }
