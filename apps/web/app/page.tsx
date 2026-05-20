@@ -44,12 +44,23 @@ interface Activity {
 type GeoState =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'ok'; lat: number; lng: number }
+  | { kind: 'ok'; lat: number; lng: number; source: 'browser' | 'preset' }
   | { kind: 'denied' }
   | { kind: 'unsupported' };
 
+// Preset cities the user can pick from instead of (or in addition to)
+// browser geolocation. Each one persists the user's choice in
+// STORAGE_LOCATION so the page comes up to the right region on reload.
+const LOCATION_PRESETS = [
+  { id: 'harrisonburg', label: 'Harrisonburg, VA', lat: 38.4496, lng: -78.8689 },
+  { id: 'lake-anna',    label: 'Lake Anna, VA',    lat: 37.989,  lng: -77.886  },
+] as const;
+type PresetId = (typeof LOCATION_PRESETS)[number]['id'];
+type LocationChoice = { kind: 'browser' } | { kind: 'preset'; id: PresetId };
+
 const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';
 const STORAGE_INTERESTS = 'proactivity:interests:v1';
+const STORAGE_LOCATION = 'proactivity:location:v1';
 
 export default function HomePage() {
   const [geo, setGeo] = useState<GeoState>({ kind: 'idle' });
@@ -142,18 +153,53 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
 
   // Geolocation on mount.
+  // Saved location preference. If the user previously picked a preset
+  // (Harrisonburg, Lake Anna), respect that and skip the browser geo
+  // prompt entirely. If they picked "browser" or have no preference,
+  // fall back to navigator.geolocation.
+  const [locationChoice, setLocationChoice] = useState<LocationChoice>({ kind: 'browser' });
+
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_LOCATION);
+      if (raw) {
+        const parsed = JSON.parse(raw) as LocationChoice;
+        if (parsed.kind === 'preset' && LOCATION_PRESETS.some((p) => p.id === parsed.id)) {
+          setLocationChoice(parsed);
+          return;
+        }
+        if (parsed.kind === 'browser') {
+          setLocationChoice(parsed);
+        }
+      }
+    } catch { /* ignore corrupted storage */ }
+  }, []);
+
+  useEffect(() => {
+    if (locationChoice.kind === 'preset') {
+      const p = LOCATION_PRESETS.find((x) => x.id === locationChoice.id);
+      if (p) {
+        setGeo({ kind: 'ok', lat: p.lat, lng: p.lng, source: 'preset' });
+        setPlaceName(p.label);
+      }
+      return;
+    }
     if (!('geolocation' in navigator)) {
       setGeo({ kind: 'unsupported' });
       return;
     }
     setGeo({ kind: 'loading' });
     navigator.geolocation.getCurrentPosition(
-      (pos) => setGeo({ kind: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => setGeo({ kind: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'browser' }),
       () => setGeo({ kind: 'denied' }),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 },
     );
-  }, []);
+  }, [locationChoice]);
+
+  const pickLocation = (choice: LocationChoice) => {
+    setLocationChoice(choice);
+    try { localStorage.setItem(STORAGE_LOCATION, JSON.stringify(choice)); } catch { /* ignore */ }
+  };
 
   // Reverse-geocode once location is known.
   useEffect(() => {
@@ -270,7 +316,13 @@ export default function HomePage() {
             {/* "Get Plus →" link hidden until Stripe is configured — see project memory. */}
           </div>
         </div>
-        <LocationBar geo={geo} placeName={placeName} onRetry={() => window.location.reload()} />
+        <LocationBar
+          geo={geo}
+          placeName={placeName}
+          locationChoice={locationChoice}
+          onPick={pickLocation}
+          onRetry={() => window.location.reload()}
+        />
       </header>
 
       <div className="controls">
@@ -533,29 +585,58 @@ function dayLabel(date: Date): string {
 function LocationBar({
   geo,
   placeName,
+  locationChoice,
+  onPick,
   onRetry,
 }: {
   geo: GeoState;
   placeName: string | null;
+  locationChoice: LocationChoice;
+  onPick: (c: LocationChoice) => void;
   onRetry: () => void;
 }) {
-  if (geo.kind === 'ok') {
-    const label = placeName ?? `${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)}`;
-    return <p className="loc">📍 near {label}</p>;
-  }
-  if (geo.kind === 'loading') return <p className="loc">Detecting your location…</p>;
-  if (geo.kind === 'denied') {
-    return (
-      <p className="loc">
-        Location declined — showing all events, sorted by time.{' '}
-        <button type="button" className="loc-link" onClick={onRetry}>retry</button>
-      </p>
-    );
-  }
-  if (geo.kind === 'unsupported') {
-    return <p className="loc">Your browser doesn't support geolocation.</p>;
-  }
-  return null;
+  const label =
+    geo.kind === 'ok'
+      ? (placeName ?? `${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)}`)
+      : geo.kind === 'loading'
+        ? 'Detecting your location…'
+        : geo.kind === 'denied'
+          ? 'Location declined'
+          : geo.kind === 'unsupported'
+            ? 'Geolocation unsupported'
+            : '';
+  const currentValue =
+    locationChoice.kind === 'preset' ? `preset:${locationChoice.id}` : 'browser';
+  return (
+    <p className="loc">
+      📍 near <strong>{label}</strong>
+      <span style={{ marginLeft: 8 }}>·</span>
+      <select
+        value={currentValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === 'browser') onPick({ kind: 'browser' });
+          else {
+            const id = v.replace('preset:', '') as PresetId;
+            onPick({ kind: 'preset', id });
+          }
+        }}
+        className="loc-picker"
+        aria-label="Choose location"
+      >
+        <option value="browser">Use my location</option>
+        {LOCATION_PRESETS.map((p) => (
+          <option key={p.id} value={`preset:${p.id}`}>{p.label}</option>
+        ))}
+      </select>
+      {geo.kind === 'denied' && locationChoice.kind === 'browser' && (
+        <>
+          <span style={{ marginLeft: 8 }}>·</span>
+          <button type="button" className="loc-link" onClick={onRetry}>retry browser geo</button>
+        </>
+      )}
+    </p>
+  );
 }
 
 interface ApprovedClaim {

@@ -156,6 +156,20 @@ main {
   margin: 14px 0 0;
   font-size: 13px;
   color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.loc-picker {
+  margin-left: 4px;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--fg);
+  cursor: pointer;
 }
 
 .loc-link {
