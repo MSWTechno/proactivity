@@ -114,6 +114,7 @@ export default function SourcesTable() {
           <Link href="/admin/organizations" className="admin-tab">Orgs</Link>
           <Link href="/admin/area-requests" className="admin-tab">Areas<AreaRequestsBadge /></Link>
           <Link href="/admin/sources" className="admin-tab admin-tab-active">Sources</Link>
+          <Link href="/admin/venue-geocodes" className="admin-tab">Geocodes</Link>
           <Link href="/admin/api-keys" className="admin-tab">Keys</Link>
           <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
         </div>
