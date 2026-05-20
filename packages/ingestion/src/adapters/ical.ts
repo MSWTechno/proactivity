@@ -162,6 +162,18 @@ function mapInstance(
   const address = stripIcalEscapes(ev.location) ?? null;
   const description = stripIcalEscapes(ev.description) ?? null;
 
+  // Prefer per-event GEO when the iCal feed carries it (RFC 5545 GEO
+  // property is parsed by node-ical as { lat, lon }). Without this every
+  // event from a source ends up sharing the source-hub coords, which
+  // collapses distance display to 0.0 mi when the user is centered on
+  // that hub.
+  const evGeo = (ev as ical.VEvent & { geo?: { lat?: number; lon?: number } }).geo;
+  const evLat = typeof evGeo?.lat === 'number' && Number.isFinite(evGeo.lat) ? evGeo.lat : null;
+  const evLng = typeof evGeo?.lon === 'number' && Number.isFinite(evGeo.lon) ? evGeo.lon : null;
+  const location = evLat != null && evLng != null
+    ? { lat: evLat, lng: evLng }
+    : { lng: cfg.lng, lat: cfg.lat };
+
   return {
     sourceEventId,
     title: ev.summary || '(untitled)',
@@ -174,7 +186,7 @@ function mapInstance(
     city: null,
     region: null,
     country: null,
-    location: { lng: cfg.lng, lat: cfg.lat },
+    location,
     ageMin: null,
     ageMax: null,
     costMinCents: null,

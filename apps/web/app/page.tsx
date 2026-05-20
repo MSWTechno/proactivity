@@ -996,7 +996,9 @@ function ActivityCard({
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const place = [a.venueName, a.city].filter(Boolean).join(' · ');
-  const distance = a.distanceMeters != null ? `${(a.distanceMeters * 0.000621371).toFixed(1)} mi` : null;
+  const distance = a.distanceMeters != null
+    ? (a.distanceMeters * 0.000621371 < 0.5 ? '< 1 mi' : `${(a.distanceMeters * 0.000621371).toFixed(1)} mi`)
+    : null;
   const price = formatPrice(a.costMinCents, a.costMaxCents, a.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(a.availability);
   const placeholder = placeholderFor({

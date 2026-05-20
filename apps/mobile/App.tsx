@@ -701,7 +701,9 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
     minute: '2-digit',
   });
   const place = [activity.venueName, activity.city].filter(Boolean).join(' · ');
-  const distance = activity.distanceMeters != null ? `${(activity.distanceMeters * 0.000621371).toFixed(1)} mi` : null;
+  const distance = activity.distanceMeters != null
+    ? (activity.distanceMeters * 0.000621371 < 0.5 ? '< 1 mi' : `${(activity.distanceMeters * 0.000621371).toFixed(1)} mi`)
+    : null;
   const price = formatPrice(activity.costMinCents, activity.costMaxCents, activity.currency);
   const isAvailable = ['onsale', 'free', 'dropin'].includes(activity.availability);
   const showImage = activity.imageUrl && !imgFailed;
