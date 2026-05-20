@@ -283,16 +283,23 @@ function MintForm({ onDone }: { onDone: (r: { label: string; plaintext: string }
 }
 
 function JustMintedBanner({ label, plaintext, onClose }: { label: string; plaintext: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = async (what: 'key' | 'embed', value: string) => {
     try {
-      await navigator.clipboard.writeText(plaintext);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard denied */
-    }
+      await navigator.clipboard.writeText(value);
+      setCopied(what);
+      setTimeout(() => setCopied(null), 2000);
+    } catch { /* clipboard denied */ }
   };
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://proactivity.app';
+  const embedSnippet = `<div data-proactivity-embed
+     data-key="${plaintext}"
+     data-location="lake-anna"
+     data-radius-mi="25"
+     data-days="7"></div>
+<script src="${origin}/embed.js" async></script>`;
+
   return (
     <div
       style={{
@@ -314,6 +321,7 @@ function JustMintedBanner({ label, plaintext, onClose }: { label: string; plaint
           ×
         </button>
       </div>
+
       <div
         style={{
           marginTop: 10,
@@ -329,12 +337,48 @@ function JustMintedBanner({ label, plaintext, onClose }: { label: string; plaint
         <button
           type="button"
           className="admin-tab"
-          onClick={copy}
+          onClick={() => copy('key', plaintext)}
           style={{ fontSize: 12, flexShrink: 0 }}
         >
-          {copied ? 'Copied!' : 'Copy'}
+          {copied === 'key' ? 'Copied!' : 'Copy key'}
         </button>
       </div>
+
+      <details style={{ marginTop: 12 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--fg-muted)' }}>
+          Embed snippet (drop into any partner site)
+        </summary>
+        <div
+          style={{
+            marginTop: 8,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'flex-start',
+            background: 'var(--bg-subtle, #f4f4f8)',
+            padding: '10px 12px',
+            borderRadius: 6,
+          }}
+        >
+          <pre style={{
+            flex: 1, fontFamily: 'monospace', fontSize: 12, margin: 0,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          }}>{embedSnippet}</pre>
+          <button
+            type="button"
+            className="admin-tab"
+            onClick={() => copy('embed', embedSnippet)}
+            style={{ fontSize: 12, flexShrink: 0 }}
+          >
+            {copied === 'embed' ? 'Copied!' : 'Copy HTML'}
+          </button>
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '6px 2px 0' }}>
+          Adjust <code>data-location</code> (harrisonburg | lake-anna), or replace with
+          <code>data-lat</code> + <code>data-lng</code>. Optional: <code>data-theme</code>
+          (light | dark | auto), <code>data-limit</code>, <code>data-categories</code>.
+        </p>
+      </details>
+
       <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 10, marginBottom: 0 }}>
         Only the SHA-256 hash is stored. There's no way to retrieve this plaintext later — if you lose it, revoke this key and mint a new one.
       </p>
