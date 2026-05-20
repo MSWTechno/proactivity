@@ -201,9 +201,11 @@ export default function HomePage() {
     try { localStorage.setItem(STORAGE_LOCATION, JSON.stringify(choice)); } catch { /* ignore */ }
   };
 
-  // Reverse-geocode once location is known.
+  // Reverse-geocode once location is known. Skip for preset picks since
+  // we already have a clean label like "Lake Anna, VA" — reverse-geocoding
+  // a preset's coords often returns a less useful nearby-town name.
   useEffect(() => {
-    if (geo.kind !== 'ok') return;
+    if (geo.kind !== 'ok' || geo.source === 'preset') return;
     let cancelled = false;
     fetch(`/api/geocode/reverse?lat=${geo.lat}&lng=${geo.lng}`)
       .then((r) => (r.ok ? r.json() : { name: '' }))

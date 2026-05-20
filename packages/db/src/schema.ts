@@ -376,3 +376,33 @@ export const urlSubmissions = pgTable(
 
 export type UrlSubmission = typeof urlSubmissions.$inferSelect;
 export type NewUrlSubmission = typeof urlSubmissions.$inferInsert;
+
+/**
+ * Partner / external-site API keys for the public events feed
+ * (GET /api/public/events). Plaintext key is never stored — only a
+ * SHA-256 hash. `prefix` is the first 8 chars of the plaintext key
+ * (e.g. "pa_2a1f3c") so admins can identify keys in lists without
+ * exposing the secret. Keys are revoked by setting `active=false`,
+ * not deleted, so audit history survives.
+ */
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    keyHash: text('key_hash').notNull().unique(),
+    prefix: text('prefix').notNull(),
+    label: text('label').notNull(),
+    ownerEmail: text('owner_email'),
+    /** null = unlimited daily quota */
+    dailyQuota: integer('daily_quota'),
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => ({
+    activeIdx: index('api_keys_active_idx').on(t.active, t.createdAt),
+  }),
+);
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
