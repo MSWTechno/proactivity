@@ -6,10 +6,11 @@ import { requireAdmin } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-// Manual re-ingestion can take a while for big sources. Cap matches the
-// cron route's plan ceiling (Hobby 60s, Pro 300s — Next.js will reject
-// the bigger value on Hobby but the cap is harmless on either).
-export const maxDuration = 60;
+// Manual re-ingestion can take a while for big sources (Visit Shenandoah
+// was clocking ~54s on its own at last measurement). Match the cron's
+// 120s ceiling so the admin "Run now" button doesn't time out where the
+// nightly cron would succeed.
+export const maxDuration = 120;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -6,12 +6,14 @@ import { runAllSources } from '@proactivity/ingestion';
 // CRON_SECRET is set as a project env var.
 //
 // Stay on the Node.js runtime — postgres-js + pg geography types don't run
-// on Edge. The maxDuration cap is plan-dependent (Hobby 60s, Pro 300s);
-// keep the per-run work bounded by limiting sources or daysAhead per source.
+// on Edge. maxDuration is 120s — current observed worst case (Visit
+// Shenandoah at ~54s, total ~54s with concurrency=4) leaves ~2x headroom
+// before this becomes a problem again. Vercel's per-plan ceiling is
+// well above this so the value is honored on every plan today.
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
