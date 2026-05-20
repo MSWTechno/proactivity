@@ -5,6 +5,11 @@ import type { NormalizedActivity } from './types.js';
 import { deriveOrganizerKey } from './organizer.js';
 
 const BATCH_SIZE = 100;
+// Number of sources to ingest in parallel. Tuned so the postgres.js pool
+// (default 10) and outbound HTTP both stay comfortable. Bump via the
+// INGEST_CONCURRENCY env var if you've grown past ~20 sources and want
+// faster cron wallclock.
+const DEFAULT_CONCURRENCY = 4;
 
 export async function runAllSources(): Promise<void> {
   const enabled = await db.select().from(sources).where(eq(sources.enabled, true));
@@ -13,9 +18,39 @@ export async function runAllSources(): Promise<void> {
     return;
   }
 
-  for (const source of enabled) {
-    await runSource(source.id, source.adapterKey, source.name, source.config);
-  }
+  const concurrency = (() => {
+    const raw = process.env.INGEST_CONCURRENCY;
+    if (!raw) return DEFAULT_CONCURRENCY;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1 || n > 20) return DEFAULT_CONCURRENCY;
+    return n;
+  })();
+  const workerCount = Math.min(concurrency, enabled.length);
+
+  console.log(`[runner] starting ${enabled.length} sources with concurrency=${workerCount}`);
+  const startedAt = Date.now();
+
+  // Shared queue cursor — each worker pulls the next source until empty.
+  // runSource already catches its own errors and writes them to the
+  // sources.last_error column, so one failing feed doesn't poison the batch.
+  let cursor = 0;
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const idx = cursor++;
+      if (idx >= enabled.length) return;
+      const source = enabled[idx]!;
+      try {
+        await runSource(source.id, source.adapterKey, source.name, source.config);
+      } catch (e) {
+        // Belt-and-suspenders — runSource normally swallows its own errors.
+        console.error(`[runner] unexpected throw from runSource(${source.name}):`, e);
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(`[runner] all ${enabled.length} sources done in ${elapsed}s`);
 }
 
 export async function runSource(
