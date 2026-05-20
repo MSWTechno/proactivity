@@ -4,6 +4,7 @@ import type {
   FetchContext,
   ParseConfigResult,
 } from '../types.js';
+import { geocodeAddress } from '../geocode.js';
 
 /**
  * Adapter for WordPress sites running the EventOn plugin.
@@ -103,7 +104,7 @@ export const eventonAdapter: SourceAdapter = {
       if (events.length === 0) return;
 
       for (const e of events) {
-        yield* expandEvent(e, config, tz, defaultAvailability, now, horizon);
+        yield* await expandEvent(e, config, tz, defaultAvailability, now, horizon);
       }
 
       const totalPages = Number(res.headers.get('x-wp-totalpages') ?? '1');
@@ -112,18 +113,26 @@ export const eventonAdapter: SourceAdapter = {
   },
 };
 
-function* expandEvent(
+async function expandEvent(
   e: EventonEvent,
   cfg: EventonConfig,
   tz: string,
   defaultAvailability: NormalizedActivity['availability'],
   now: Date,
   horizon: Date,
-): Iterable<NormalizedActivity> {
+): Promise<NormalizedActivity[]> {
+  const out: NormalizedActivity[] = [];
   const occurrences =
     e.event_occurrences && e.event_occurrences.length > 0
       ? e.event_occurrences
       : [{ start: e.start_date, end: e.end_date }];
+
+  const venue = e.event_location_0;
+  const rawAddress = venue?.location_address ? decodeEntities(venue.location_address) : null;
+  // Geocode once per venue (helper has its own cache). Falls back to the
+  // source's hub coords if Nominatim doesn't resolve the address.
+  const geo = rawAddress ? await geocodeAddress(rawAddress) : null;
+  const location = geo ? { lat: geo.lat, lng: geo.lng } : { lng: cfg.lng, lat: cfg.lat };
 
   for (const occ of occurrences) {
     const startAt = parseUsDateInTz(occ.start, tz);
@@ -133,11 +142,10 @@ function* expandEvent(
     const isRecurring = occurrences.length > 1;
     const sourceEventId = isRecurring ? `${e.id}::${occ.start}` : String(e.id);
 
-    const venue = e.event_location_0;
     const categories = extractCategories(e);
     const description = stripHtml(e.excerpt?.rendered ?? e.content?.rendered ?? '') || null;
 
-    yield {
+    out.push({
       sourceEventId,
       title: decodeEntities(e.title?.rendered ?? '(untitled)'),
       description,
@@ -145,11 +153,11 @@ function* expandEvent(
       endAt,
       timezone: e.event_timezone || tz,
       venueName: venue?.name ? decodeEntities(venue.name) : null,
-      address: venue?.location_address ? decodeEntities(venue.location_address) : null,
+      address: rawAddress,
       city: null,
       region: null,
       country: null,
-      location: { lng: cfg.lng, lat: cfg.lat },
+      location,
       ageMin: null,
       ageMax: null,
       costMinCents: null,
@@ -169,8 +177,9 @@ function* expandEvent(
         event_location_0: e.event_location_0,
         learn_more: e.learn_more,
       },
-    };
+    });
   }
+  return out;
 }
 
 /**

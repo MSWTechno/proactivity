@@ -4,6 +4,7 @@ import type {
   FetchContext,
   ParseConfigResult,
 } from '../types.js';
+import { geocodeAddress } from '../geocode.js';
 
 /**
  * Generic scraper for sites that publish schema.org/Event JSON-LD on their
@@ -114,7 +115,7 @@ export const jsonLdEventAdapter: SourceAdapter = {
         seenUrls.add(url);
         const start = parseLooseIso(ev.startDate);
         if (!start || start < now || start > horizon) continue;
-        yield mapToActivity(ev, url, config, defaultAvailability);
+        yield await mapToActivity(ev, url, config, defaultAvailability);
         yielded++;
         yieldedThisPage++;
         if (yielded >= maxEvents) return;
@@ -145,7 +146,7 @@ export const jsonLdEventAdapter: SourceAdapter = {
           seenUrls.add(detailUrl);
           const start = parseLooseIso(ev.startDate);
           if (!start || start < now || start > horizon) continue;
-          yield mapToActivity(ev, detailUrl, config, defaultAvailability);
+          yield await mapToActivity(ev, detailUrl, config, defaultAvailability);
           yielded++;
           if (yielded >= maxEvents) return;
         }
@@ -285,12 +286,12 @@ function collectItems(parsed: unknown): EventLd[] {
 
 // ---- Mapping ----
 
-function mapToActivity(
+async function mapToActivity(
   ev: EventLd,
   detailUrl: string,
   cfg: JsonLdConfig,
   defaultAvailability: NormalizedActivity['availability'],
-): NormalizedActivity {
+): Promise<NormalizedActivity> {
   const sourceEventId = stableEventId(detailUrl);
   const startAt = parseLooseIso(ev.startDate)!;
   const endAt = parseLooseIso(ev.endDate);
@@ -315,6 +316,18 @@ function mapToActivity(
   const evLng = evGeo?.longitude != null ? Number(evGeo.longitude) : null;
   const useEventCoords = Number.isFinite(evLat ?? NaN) && Number.isFinite(evLng ?? NaN);
 
+  // Per-event geo wins; if missing, try address geocoding (cached);
+  // ultimate fallback is the source's hub coords.
+  let location: { lat: number; lng: number };
+  if (useEventCoords) {
+    location = { lat: evLat!, lng: evLng! };
+  } else if (addressString) {
+    const geocoded = await geocodeAddress(addressString);
+    location = geocoded ?? { lat: cfg.lat, lng: cfg.lng };
+  } else {
+    location = { lat: cfg.lat, lng: cfg.lng };
+  }
+
   return {
     sourceEventId,
     title: ev.name ?? '(untitled)',
@@ -327,7 +340,7 @@ function mapToActivity(
     city: addr?.addressLocality ?? null,
     region: addr?.addressRegion ?? null,
     country: addr?.addressCountry ?? null,
-    location: useEventCoords ? { lng: evLng!, lat: evLat! } : { lng: cfg.lng, lat: cfg.lat },
+    location,
     ageMin: null,
     ageMax: null,
     costMinCents: price,

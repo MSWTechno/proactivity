@@ -445,3 +445,28 @@ export const areaRequests = pgTable(
 
 export type AreaRequest = typeof areaRequests.$inferSelect;
 export type NewAreaRequest = typeof areaRequests.$inferInsert;
+
+/**
+ * Address → lat/lng cache. Keyed by normalized address so the same
+ * venue across many events only hits the upstream geocoder once.
+ * status='ok' rows return cached coords; status='not_found' / 'error'
+ * rows short-circuit retries (don't re-hit Nominatim for an address
+ * we already know it doesn't have).
+ *
+ * Admin can clear stale rows or re-trigger geocoding by deleting rows
+ * out of band.
+ */
+export const venueGeocodes = pgTable('venue_geocodes', {
+  normalizedAddress: text('normalized_address').primaryKey(),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  /** 'nominatim' | 'mapbox' | 'manual' */
+  source: text('source').notNull(),
+  /** 'ok' | 'not_found' | 'error' */
+  status: text('status').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type VenueGeocode = typeof venueGeocodes.$inferSelect;
+export type NewVenueGeocode = typeof venueGeocodes.$inferInsert;
