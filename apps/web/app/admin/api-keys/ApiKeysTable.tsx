@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '../../Logo';
+import { AreaRequestsBadge } from '../_components/AreaRequestsBadge';
 
 interface KeyRow {
   id: string;
@@ -92,7 +93,7 @@ export default function ApiKeysTable() {
           <Link href="/admin/moderate" className="admin-tab">Moderation</Link>
           <Link href="/admin/events" className="admin-tab">Events</Link>
           <Link href="/admin/organizations" className="admin-tab">Orgs</Link>
-          <Link href="/admin/area-requests" className="admin-tab">Areas</Link>
+          <Link href="/admin/area-requests" className="admin-tab">Areas<AreaRequestsBadge /></Link>
           <Link href="/admin/api-keys" className="admin-tab admin-tab-active">Keys</Link>
           <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
         </div>

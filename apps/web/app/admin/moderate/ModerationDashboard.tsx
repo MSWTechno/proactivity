@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '../../Logo';
+import { AreaRequestsBadge } from '../_components/AreaRequestsBadge';
 import { generateOccurrences } from '../../../lib/recurrence';
 
 interface PendingRating {
@@ -298,7 +299,7 @@ export default function ModerationDashboard() {
           <Link href="/admin/moderate" className="admin-tab admin-tab-active">Moderation</Link>
           <Link href="/admin/events" className="admin-tab">Events</Link>
           <Link href="/admin/organizations" className="admin-tab">Orgs</Link>
-          <Link href="/admin/area-requests" className="admin-tab">Areas</Link>
+          <Link href="/admin/area-requests" className="admin-tab">Areas<AreaRequestsBadge /></Link>
           <Link href="/admin/api-keys" className="admin-tab">Keys</Link>
           <button type="button" className="admin-logout" onClick={logout}>Sign out</button>
         </div>
