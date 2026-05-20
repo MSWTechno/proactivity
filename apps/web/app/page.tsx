@@ -49,13 +49,10 @@ type GeoState =
   | { kind: 'unsupported' };
 
 // Preset cities the user can pick from instead of (or in addition to)
-// browser geolocation. Each one persists the user's choice in
+// browser geolocation. Shared with the public events API so partners
+// can pass ?location=lake-anna instead of raw lat/lng. Persisted to
 // STORAGE_LOCATION so the page comes up to the right region on reload.
-const LOCATION_PRESETS = [
-  { id: 'harrisonburg', label: 'Harrisonburg, VA', lat: 38.4496, lng: -78.8689 },
-  { id: 'lake-anna',    label: 'Lake Anna, VA',    lat: 37.989,  lng: -77.886  },
-] as const;
-type PresetId = (typeof LOCATION_PRESETS)[number]['id'];
+import { LOCATION_PRESETS, type LocationPresetId as PresetId } from '@/lib/locations';
 type LocationChoice = { kind: 'browser' } | { kind: 'preset'; id: PresetId };
 
 const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';

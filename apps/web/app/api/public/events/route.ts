@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { authenticate } from '@/lib/api-auth';
+import { LOCATION_PRESETS, findPreset } from '@/lib/locations';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,9 +17,12 @@ export const runtime = 'nodejs';
  * Keys are minted by an admin at /admin/api-keys.
  *
  * Query params:
- *   lat, lng       - decimal degrees; required together
- *   radiusMi       - integer, 1..200 (default 25). Converted to km on
- *                    the wire for the existing /api/activities backend.
+ *   location       - preset id ("harrisonburg" | "lake-anna"). If set,
+ *                    lat/lng are derived server-side and any passed
+ *                    lat/lng are ignored. Convenient for static embed
+ *                    code on partner sites.
+ *   lat, lng       - decimal degrees; required if location isn't given.
+ *   radiusMi       - integer, 1..200 (default 25).
  *   days           - integer, 1..90 (default 7). Window of future days.
  *   limit          - integer, 1..100 (default 50).
  *   categories     - comma-separated canonical category keys (optional)
@@ -45,10 +49,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'unknown version (only v=1 supported)' }, { status: 400, headers: cors });
   }
 
-  const lat = parseFloat(url.searchParams.get('lat') ?? '');
-  const lng = parseFloat(url.searchParams.get('lng') ?? '');
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
-    return NextResponse.json({ error: 'lat and lng required (decimal degrees)' }, { status: 400, headers: cors });
+  // Resolve location: either via a preset id or explicit lat/lng.
+  const presetParam = url.searchParams.get('location')?.trim() ?? '';
+  let lat: number;
+  let lng: number;
+  let resolvedLocation: { id?: string; label?: string } = {};
+  if (presetParam) {
+    const preset = findPreset(presetParam);
+    if (!preset) {
+      const known = LOCATION_PRESETS.map((p) => p.id).join(', ');
+      return NextResponse.json(
+        { error: `unknown location '${presetParam}' (try one of: ${known})` },
+        { status: 400, headers: cors },
+      );
+    }
+    lat = preset.lat;
+    lng = preset.lng;
+    resolvedLocation = { id: preset.id, label: preset.label };
+  } else {
+    lat = parseFloat(url.searchParams.get('lat') ?? '');
+    lng = parseFloat(url.searchParams.get('lng') ?? '');
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      return NextResponse.json(
+        { error: 'either location=<preset> or both lat and lng (decimal degrees) required' },
+        { status: 400, headers: cors },
+      );
+    }
   }
 
   const radiusMi = clamp(parseInt(url.searchParams.get('radiusMi') ?? '25', 10), 1, 200, 25);
@@ -149,7 +175,10 @@ export async function GET(request: Request) {
     {
       version: 1,
       count: events.length,
-      query: { lat, lng, radiusMi, days, limit, categories: categoryFilter },
+      query: {
+        ...(resolvedLocation.id ? { location: resolvedLocation } : {}),
+        lat, lng, radiusMi, days, limit, categories: categoryFilter,
+      },
       events,
       attribution: { name: 'Proactivity', url: 'https://proactivity.app' },
     },
