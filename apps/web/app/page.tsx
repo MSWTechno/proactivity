@@ -86,6 +86,20 @@ export default function HomePage() {
   const [me, setMe] = useState<{ id: string; email: string; name: string | null } | null>(null);
   const [noAds, setNoAds] = useState(false);
 
+  // Open the submit modal automatically when arriving from an embed CTA
+  // (proactivity.app/?submit=1). Strips the param from the URL so a
+  // refresh doesn't keep re-opening the modal.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('submit') === '1') {
+      setShowSubmitForm(true);
+      sp.delete('submit');
+      const newSearch = sp.toString();
+      window.history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
+    }
+  }, []);
+
   // Fetch current user + subscription state once on mount.
   useEffect(() => {
     fetch('/api/auth/me')
