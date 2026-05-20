@@ -406,3 +406,42 @@ export const apiKeys = pgTable(
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
+
+/**
+ * "I want Proactivity in my area" requests from public visitors. Two
+ * goals: (1) signal which regions to expand into next, (2) capture a
+ * soft commitment to seed events so we filter for serious bootstrappers.
+ *
+ * Admin reviews in /admin/area-requests, clusters geographically, and
+ * marks `launched` once sources + presets have been configured for that
+ * region. The submitter then gets a magic-link follow-up.
+ */
+export const areaRequests = pgTable(
+  'area_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    name: text('name'),
+    /** Free text the visitor typed, e.g. "Charlottesville, VA" */
+    regionText: text('region_text').notNull(),
+    /** From browser geolocation if granted — null otherwise */
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
+    /** 'resident' | 'organizer' | 'attendee' (free text in case future options) */
+    relationship: text('relationship'),
+    /** Number of events they pledged to add in the first month */
+    committedEventCount: integer('committed_event_count'),
+    ipAddress: text('ip_address'),
+    /** 'requested' | 'launched' | 'rejected' */
+    status: text('status').notNull().default('requested'),
+    moderatorNote: text('moderator_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => ({
+    statusIdx: index('area_requests_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
+export type AreaRequest = typeof areaRequests.$inferSelect;
+export type NewAreaRequest = typeof areaRequests.$inferInsert;

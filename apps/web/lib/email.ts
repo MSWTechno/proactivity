@@ -121,7 +121,7 @@ export async function notifyDraftResolved(params: {
  * moderation queue. No-ops if neither env var is set.
  */
 export async function notifyAdminOfPending(params: {
-  kind: 'claim' | 'event_draft' | 'url_submission' | 'contact' | 'contact_general' | 'rating';
+  kind: 'claim' | 'event_draft' | 'url_submission' | 'contact' | 'contact_general' | 'rating' | 'area_request';
   summary: string;
   detail?: string | null;
   submitterEmail?: string | null;
@@ -139,6 +139,7 @@ export async function notifyAdminOfPending(params: {
     contact: 'New event submission',
     contact_general: 'Contact form message',
     rating: 'Rating',
+    area_request: 'New area request',
   }[params.kind];
   const subject = isGeneralContact
     ? `[Proactivity] Contact form: ${params.summary}`

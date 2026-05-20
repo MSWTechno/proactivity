@@ -530,6 +530,8 @@ export default function HomePage() {
         {' · '}
         <a href="/contact" style={{ color: 'var(--fg-muted)' }}>Contact</a>
         {' · '}
+        <a href="/request-area" style={{ color: 'var(--fg-muted)' }}>Request your area</a>
+        {' · '}
         <a href="/privacy" style={{ color: 'var(--fg-muted)' }}>Privacy policy</a>
       </p>
       <p className="disclaimer" style={{ marginTop: 4 }}>
@@ -1422,12 +1424,16 @@ function Empty({ searchActive, onClear }: { searchActive: boolean; onClear: () =
       <p>
         {searchActive
           ? 'Try clearing some filters or expanding the date range.'
-          : 'No events in this window — try widening the date range.'}
+          : 'No events in this window — try widening the date range, or tell us to launch in your area.'}
       </p>
-      {searchActive && (
+      {searchActive ? (
         <button type="button" className="btn-primary" onClick={onClear}>
           Clear filters
         </button>
+      ) : (
+        <a href="/request-area" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none', marginTop: 8 }}>
+          Bring Proactivity to my area
+        </a>
       )}
     </div>
   );
