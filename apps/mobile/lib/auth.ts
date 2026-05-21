@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 const STORAGE_KEY = 'proactivity:session:v1';
 
 export const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
-  ?? 'https://proactivity-web.vercel.app';
+  ?? 'https://proactivity.app';
 
 export interface MeUser {
   id: string;

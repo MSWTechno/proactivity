@@ -15,6 +15,7 @@ export const CATEGORIES = {
   nightlife: { label: 'Nightlife',    emoji: '🍻' },
   festivals: { label: 'Festivals',    emoji: '🎪' },
   wellness:  { label: 'Wellness',     emoji: '🧘' },
+  camps:     { label: 'Camps',        emoji: '🏕' },
   other:     { label: 'Other',        emoji: '✨' },
 } as const;
 

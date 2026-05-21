@@ -37,7 +37,7 @@ import { ALL_CATEGORY_KEYS, CATEGORIES, type CategoryKey } from './lib/categorie
 import { placeholderFor } from './lib/icons';
 
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
-  ?? 'https://proactivity-web.vercel.app';
+  ?? 'https://proactivity.app';
 
 const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';
 const STORAGE_INTERESTS = 'proactivity:interests:v1';
@@ -200,7 +200,12 @@ export default function App() {
     fetch(`${API_BASE}/api/categories/popular`)
       .then((r) => (r.ok ? r.json() : { ordered: [] }))
       .then((d: { ordered?: CategoryKey[] }) => {
-        if (d.ordered && d.ordered.length > 0) setOrderedCategories(d.ordered);
+        if (d.ordered && d.ordered.length > 0) {
+          // Filter unknowns — guards against web/mobile category drift
+          // that would otherwise crash the render (CATEGORIES[k].emoji).
+          const safe = d.ordered.filter((k) => ALL_CATEGORY_KEYS.includes(k));
+          if (safe.length > 0) setOrderedCategories(safe);
+        }
       })
       .catch(() => {
         /* keep default order */
