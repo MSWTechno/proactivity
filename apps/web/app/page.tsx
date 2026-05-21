@@ -995,6 +995,12 @@ function ActivityCard({
   const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  // Append the end time when the event ends the same day. Multi-day events
+  // would read weirdly as a single bare time so we skip them.
+  const end = a.endAt ? new Date(a.endAt) : null;
+  const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
+  const endStr = sameDayEnd ? end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null;
+  const timeRange = endStr ? `${timeStr} – ${endStr}` : timeStr;
   const place = [a.venueName, a.city].filter(Boolean).join(' · ');
   const distance = a.distanceMeters != null
     ? (a.distanceMeters * 0.000621371 < 0.5 ? '< 1 mi' : `${(a.distanceMeters * 0.000621371).toFixed(1)} mi`)
@@ -1062,7 +1068,7 @@ function ActivityCard({
           </p>
         )}
         <p className="card-meta">
-          <time dateTime={a.startAt}>{timeStr}</time>
+          <time dateTime={a.startAt}>{timeRange}</time>
           {place ? <> · {place}</> : null}
           {distance ? <> · {distance}</> : null}
         </p>

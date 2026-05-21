@@ -700,6 +700,13 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
     hour: 'numeric',
     minute: '2-digit',
   });
+  // Append end time when same-day so open-gym style slots read e.g.
+  // "Thu, May 21, 8:00 AM – 8:00 PM" instead of just the start.
+  const end = activity.endAt ? new Date(activity.endAt) : null;
+  const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
+  const whenWithEnd = sameDayEnd
+    ? `${when} – ${end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    : when;
   const place = [activity.venueName, activity.city].filter(Boolean).join(' · ');
   const distance = activity.distanceMeters != null
     ? (activity.distanceMeters * 0.000621371 < 0.5 ? '< 1 mi' : `${(activity.distanceMeters * 0.000621371).toFixed(1)} mi`)
@@ -749,7 +756,7 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
       <View style={styles.cardBody}>
         <Text numberOfLines={2} style={[styles.cardTitle, { color: t.fg }]}>{activity.title}</Text>
         <Text style={[styles.cardMeta, { color: t.muted }]} numberOfLines={1}>
-          {when}{place ? ` · ${place}` : ''}{distance ? ` · ${distance}` : ''}
+          {whenWithEnd}{place ? ` · ${place}` : ''}{distance ? ` · ${distance}` : ''}
         </Text>
         <View style={styles.cardBottom}>
           <View style={styles.cardBadges}>
