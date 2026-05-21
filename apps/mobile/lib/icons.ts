@@ -130,13 +130,17 @@ export function placeholderFor(input: {
   organizerName?: string | null;
   canonicalCategories?: CategoryKey[];
 }): { emoji: string; color: string } {
-  const titleEmoji = emojiFromText(input.title);
-  const venueEmoji = emojiFromText(input.venueName);
-  const organizerEmoji = emojiFromText(input.organizerName);
+  // Walk rules in declared order, testing each against title+venue+
+  // organizer combined. The rule order itself controls priority (sport
+  // names like volleyball declared before generic /clinic|skills/), so
+  // a Luxe Volleyball Academy "Skills Clinic" gets 🏐 from the organizer
+  // before the clinic-rule matches the title.
+  const haystack = [input.title, input.venueName, input.organizerName].filter(Boolean).join(' • ');
+  const matched = TITLE_EMOJI_RULES.find((rule) => rule.pattern.test(haystack));
   const firstCat = input.canonicalCategories?.find((k) => k !== 'other') as CategoryKey | undefined;
   const categoryEmoji = firstCat ? CATEGORIES[firstCat].emoji : null;
   return {
-    emoji: titleEmoji ?? venueEmoji ?? organizerEmoji ?? categoryEmoji ?? '✨',
+    emoji: matched?.emoji ?? categoryEmoji ?? '✨',
     color: colorForTitle(input.title),
   };
 }
