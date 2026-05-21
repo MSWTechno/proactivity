@@ -56,6 +56,7 @@ interface AddEventFormProps {
     name: string | null;
     email: string;
     organization: string | null;
+    message: string;
   };
 }
 
@@ -147,6 +148,27 @@ export default function AddEventForm({ initialValues, contactMeta }: AddEventFor
           <div style={{ fontSize: 12, color: 'var(--fg-muted, #666)', marginTop: 6 }}>
             Submission will be marked <strong>added</strong> after you save.
           </div>
+          {contactMeta.message && (
+            <details style={{ marginTop: 10 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--fg-muted, #666)' }}>
+                Original submitter note (admin-only — won't auto-fill the description)
+              </summary>
+              <p
+                style={{
+                  margin: '6px 0 0',
+                  padding: '8px 10px',
+                  background: 'var(--bg-subtle, #f4f4f8)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  whiteSpace: 'pre-wrap',
+                  color: 'var(--fg)',
+                }}
+              >
+                {contactMeta.message}
+              </p>
+            </details>
+          )}
         </div>
       )}
       <p className="onboarding-sub" style={{ marginBottom: 24, maxWidth: 600 }}>

@@ -22,7 +22,7 @@ export default async function AddEventPage({
   // can atomically flip the submission to 'added' alongside the insert.
   const params = await searchParams;
   let initialValues: Record<string, string> | undefined;
-  let contactMeta: { id: string; name: string | null; email: string; organization: string | null } | undefined;
+  let contactMeta: { id: string; name: string | null; email: string; organization: string | null; message: string } | undefined;
 
   if (params.contactId && UUID_RE.test(params.contactId)) {
     const rows = await db
@@ -41,14 +41,20 @@ export default async function AddEventPage({
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       };
       // Newer submissions carry structured event_data; older ones don't.
-      // When present, prefill every form field; otherwise fall back to
-      // the message text + organization for title/description/organizer.
+      // When present, prefill every form field from event_data only —
+      // NEVER from sub.message. The message field is the submitter's
+      // free-text note to the admin (or, for admin-scraped batches,
+      // internal provenance like "Admin-scraped from <url>") and must
+      // not auto-flow into the public activity description. If a legacy
+      // (no event_data) submission has nothing in event_data, the admin
+      // gets blank fields and has to type a description themselves —
+      // small UX friction for a real privacy win.
       const ed = (sub.eventData ?? null) as null | Record<string, unknown>;
       const str = (v: unknown): string => (typeof v === 'string' ? v : '');
       initialValues = ed
         ? {
             title: str(ed.title),
-            description: str(ed.description) || sub.message,
+            description: str(ed.description),
             startAt: toLocalInput(str(ed.startAt)),
             endAt: toLocalInput(str(ed.endAt)),
             venueName: str(ed.venueName),
@@ -67,7 +73,7 @@ export default async function AddEventPage({
           }
         : {
             title: sub.organization ?? '',
-            description: sub.message ?? '',
+            description: '',
             organizerName: sub.organization ?? '',
             url: sub.eventUrl ?? '',
             availability: 'onsale',
@@ -77,6 +83,7 @@ export default async function AddEventPage({
         name: sub.name,
         email: sub.email,
         organization: sub.organization,
+        message: sub.message,
       };
     }
   }
