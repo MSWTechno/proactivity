@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /organizer/
+Disallow: /login
+Disallow: /api/
+Disallow: /dev/
+Disallow: /embed
+
+Sitemap: https://proactivity.app/sitemap.xml
