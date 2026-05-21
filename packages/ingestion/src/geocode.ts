@@ -69,10 +69,18 @@ export async function geocodeAddress(rawAddr: string | null | undefined): Promis
     return null; // cached failure — don't retry until admin clears it
   }
 
+  // Clean the address before sending. Cache key stays original; query
+  // upstream is scrubbed.
+  const upstreamQuery = buildGeocodeQuery(normalized);
+  if (!upstreamQuery) {
+    await cacheResult(normalized, null, null, 'not_found');
+    return null;
+  }
+
   return withNominatimSlot(async () => {
     try {
       const url = new URL(NOMINATIM_URL);
-      url.searchParams.set('q', normalized);
+      url.searchParams.set('q', upstreamQuery);
       url.searchParams.set('format', 'json');
       url.searchParams.set('limit', '1');
       url.searchParams.set('addressdetails', '0');
@@ -116,6 +124,64 @@ function normalizeAddress(addr: string): string {
     .trim()
     .toLowerCase()
     .slice(0, 300);
+}
+
+/**
+ * Build a cleaner query string for Nominatim from a raw address.
+ * The cache key stays the original normalized address (so re-runs hit
+ * the cache), but what we send upstream is scrubbed of common noise
+ * Nominatim chokes on:
+ *   - leading venue name like "venue name, 123 main st..." (Nominatim
+ *     prefers just the postal portion)
+ *   - duplicated city/state pieces ("harrisonburg, va, va, 22801")
+ *   - suite / apt / unit / floor / building specifiers
+ *   - trailing "united states" / "usa" (Nominatim handles VA-only fine)
+ *   - parenthetical asides
+ *
+ * Empty result means we don't bother sending to Nominatim — straight
+ * to not_found.
+ */
+function buildGeocodeQuery(normalized: string): string {
+  let q = normalized;
+
+  // Drop parenthetical asides.
+  q = q.replace(/\([^)]*\)/g, ' ');
+
+  // Drop suite/apt/unit/floor specifiers (with or without "#"), e.g.
+  // "ste 105", "suite 200", "#7", "apt 3b", "unit 12", "7th floor".
+  q = q.replace(/[,\s]+(ste|suite|apt|apartment|unit|building|bldg|fl|floor|rm|room|#)\s*[\w-]+/gi, ' ');
+  q = q.replace(/[,\s]+\d+(?:st|nd|rd|th)\s+floor/gi, ' ');
+
+  // Drop trailing country tokens. Nominatim resolves US addresses fine without.
+  q = q.replace(/[,\s]+(united states(?: of america)?|u\.?s\.?a\.?|usa)[,\s]*$/i, ' ');
+
+  // Collapse duplicated city/state: e.g. "harrisonburg, va, va, 22801" or
+  // "richmond, va, richmond, va". Walk the comma-separated parts and
+  // drop a part that exactly equals the immediately previous one OR
+  // a state-only ('va') that follows another state-only.
+  const parts = q
+    .split(',')
+    .map((s) => s.trim().replace(/\s+/g, ' '))
+    .filter(Boolean);
+  const deduped: string[] = [];
+  for (const p of parts) {
+    const last = deduped[deduped.length - 1];
+    if (last && p === last) continue;
+    // Drop "virginia" if previous was "va" (and vice versa).
+    if (last && ((last === 'va' && p === 'virginia') || (last === 'virginia' && p === 'va'))) continue;
+    deduped.push(p);
+  }
+
+  // If the first part doesn't start with a digit and there's at least
+  // 3 parts left, assume it's a venue name — drop it. (e.g.
+  // "white oak lavender farm, 2644 cross keys rd, harrisonburg, va"
+  // → "2644 cross keys rd, harrisonburg, va")
+  if (deduped.length >= 3 && !/^\d/.test(deduped[0]!)) {
+    deduped.shift();
+  }
+
+  q = deduped.join(', ').replace(/\s+/g, ' ').trim();
+  return q;
 }
 
 async function cacheResult(
