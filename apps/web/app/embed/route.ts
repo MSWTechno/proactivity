@@ -61,11 +61,31 @@ export async function GET(request: Request) {
   const radiusKm = radiusMi * 1.60934;
   const rows = (await sql`
     SELECT
-      a.id, a.title, a.start_at, a.url, a.image_url,
+      a.id, a.title, a.start_at, a.end_at, a.url, a.image_url,
       a.venue_name, a.city, a.region,
       a.cost_min_cents, a.cost_max_cents, a.currency, a.availability,
-      a.organizer_name
+      a.organizer_name, a.organizer_key,
+      ST_Distance(a.location::geography, ST_MakePoint(${lng}, ${lat})::geography) AS distance_m,
+      -- Event rating (per the same recurring-series key used elsewhere)
+      er.avg_score AS event_rating_avg, COALESCE(er.cnt, 0)::int AS event_rating_count,
+      -- Organizer rating
+      og.avg_score AS org_rating_avg, COALESCE(og.cnt, 0)::int AS org_rating_count
     FROM activities a
+    LEFT JOIN LATERAL (
+      SELECT AVG(score)::float AS avg_score, COUNT(*)::int AS cnt
+      FROM ratings r
+      WHERE r.status = 'approved'
+        AND r.target_kind = 'event'
+        AND r.source_id = a.source_id
+        AND r.target_key = SPLIT_PART(a.source_event_id, '::', 1)
+    ) er ON true
+    LEFT JOIN LATERAL (
+      SELECT AVG(score)::float AS avg_score, COUNT(*)::int AS cnt
+      FROM ratings r
+      WHERE r.status = 'approved'
+        AND r.target_kind = 'organizer'
+        AND r.target_key = a.organizer_key
+    ) og ON true
     WHERE a.url IS NOT NULL
       AND a.url <> ''
       AND a.is_virtual = false
@@ -83,6 +103,7 @@ export async function GET(request: Request) {
     id: string;
     title: string;
     start_at: Date;
+    end_at: Date | null;
     url: string;
     image_url: string | null;
     venue_name: string | null;
@@ -93,6 +114,12 @@ export async function GET(request: Request) {
     currency: string | null;
     availability: string;
     organizer_name: string | null;
+    organizer_key: string | null;
+    distance_m: number;
+    event_rating_avg: number | null;
+    event_rating_count: number;
+    org_rating_avg: number | null;
+    org_rating_count: number;
   }>;
 
   return htmlResponse(renderPage(rows, { theme, days, presetId, lat, lng }));
@@ -132,22 +159,31 @@ function errorPage(message: string): string {
   return baseShell(`<div class="pa-error">${esc(message)}</div>`, 'auto');
 }
 
+type EmbedRow = {
+  id: string;
+  title: string;
+  start_at: Date;
+  end_at: Date | null;
+  url: string;
+  image_url: string | null;
+  venue_name: string | null;
+  city: string | null;
+  region: string | null;
+  cost_min_cents: number | null;
+  cost_max_cents: number | null;
+  currency: string | null;
+  availability: string;
+  organizer_name: string | null;
+  organizer_key: string | null;
+  distance_m: number;
+  event_rating_avg: number | null;
+  event_rating_count: number;
+  org_rating_avg: number | null;
+  org_rating_count: number;
+};
+
 function renderPage(
-  rows: ReadonlyArray<{
-    id: string;
-    title: string;
-    start_at: Date;
-    url: string;
-    image_url: string | null;
-    venue_name: string | null;
-    city: string | null;
-    region: string | null;
-    cost_min_cents: number | null;
-    cost_max_cents: number | null;
-    currency: string | null;
-    availability: string;
-    organizer_name: string | null;
-  }>,
+  rows: ReadonlyArray<EmbedRow>,
   opts: { theme: 'auto' | 'light' | 'dark'; days: number; presetId?: string; lat?: number; lng?: number },
 ): string {
   // CTA pointing back to proactivity.app — lets viewers either submit
@@ -179,25 +215,10 @@ function renderPage(
   return baseShell(body, opts.theme);
 }
 
-function renderRow(r: {
-  id: string;
-  title: string;
-  start_at: Date;
-  url: string;
-  image_url: string | null;
-  venue_name: string | null;
-  city: string | null;
-  region: string | null;
-  cost_min_cents: number | null;
-  cost_max_cents: number | null;
-  currency: string | null;
-  availability: string;
-  organizer_name: string | null;
-}): string {
+function renderRow(r: EmbedRow): string {
   const start = new Date(r.start_at);
-  // Use UTC-ish formatting on the server then let the client overlay below
-  // (small inline script) re-format to viewer's local time.
-  const iso = start.toISOString();
+  const startIso = start.toISOString();
+  const endIso = r.end_at ? new Date(r.end_at).toISOString() : '';
   const img = r.image_url
     ? `<img class="pa-row-img" src="${esc(r.image_url)}" alt="" loading="lazy" />`
     : `<div class="pa-row-img pa-row-img-placeholder">★</div>`;
@@ -206,14 +227,32 @@ function renderRow(r: {
   const badge = r.availability && r.availability !== 'onsale'
     ? `<span class="pa-row-badge">${esc(r.availability.replace('_', ' '))}</span>`
     : '';
+
+  // Inline rating chips next to title + org name (mirrors homepage cards).
+  const eventStar = r.event_rating_count > 0 && r.event_rating_avg != null
+    ? ` <span class="pa-rating">★ ${r.event_rating_avg.toFixed(1)} <span class="pa-rating-n">(${r.event_rating_count})</span></span>`
+    : '';
+  const orgStar = r.org_rating_count > 0 && r.org_rating_avg != null
+    ? ` <span class="pa-rating pa-rating-org">★ ${r.org_rating_avg.toFixed(1)} <span class="pa-rating-n">(${r.org_rating_count})</span></span>`
+    : '';
+
+  // Distance: pre-format server-side. Under-half-mile → "< 1 mi" to avoid
+  // misleading "0.0 mi" for events that share their source's hub coords.
+  const distMi = r.distance_m * 0.000621371;
+  const distance = distMi < 0.5 ? '< 1 mi' : `${distMi.toFixed(1)} mi`;
+
+  // Clicks route through /api/activities/:id/go so partner-driven traffic
+  // shows up in our click_count alongside on-site clicks. The go endpoint
+  // 302-redirects to r.url, so user experience is identical to a direct link.
+  const goHref = `https://proactivity.app/api/activities/${r.id}/go`;
   return `
     <li class="pa-row">
-      <a href="${esc(r.url)}" target="_blank" rel="noopener" class="pa-row-link">
+      <a href="${esc(goHref)}" target="_blank" rel="noopener" class="pa-row-link">
         ${img}
         <div class="pa-row-body">
-          <p class="pa-row-title">${esc(r.title)}</p>
-          ${r.organizer_name ? `<p class="pa-row-org">${esc(r.organizer_name)}</p>` : ''}
-          <p class="pa-row-meta"><time data-iso="${iso}">${esc(start.toUTCString())}</time>${place ? ` · ${esc(place)}` : ''}</p>
+          <p class="pa-row-title">${esc(r.title)}${eventStar}</p>
+          ${r.organizer_name ? `<p class="pa-row-org">${esc(r.organizer_name)}${orgStar}</p>` : ''}
+          <p class="pa-row-meta"><time data-iso="${startIso}"${endIso ? ` data-end-iso="${endIso}"` : ''}>${esc(start.toUTCString())}</time>${place ? ` · ${esc(place)}` : ''} · ${distance}</p>
         </div>
         <div class="pa-row-right">
           ${price ? `<span class="pa-row-price">${esc(price)}</span>` : ''}
@@ -280,6 +319,10 @@ function baseShell(bodyHtml: string, theme: 'auto' | 'light' | 'dark'): string {
   .pa-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12px; }
   .pa-row-price { font-weight: 600; color: var(--pa-fg); }
   .pa-row-badge { text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--pa-border); color: var(--pa-fg-muted); }
+  /* Inline rating chips — mirror homepage card style */
+  .pa-rating { margin-left: 4px; font-size: 11px; font-weight: 500; color: #d97706; white-space: nowrap; }
+  .pa-rating-org { color: var(--pa-accent); }
+  .pa-rating-n { color: var(--pa-fg-muted); font-weight: 400; }
   .pa-footer {
     margin: 12px 0 0; padding: 10px 12px;
     background: var(--pa-bg-row); border: 1px solid var(--pa-border);
@@ -309,12 +352,22 @@ function baseShell(bodyHtml: string, theme: 'auto' | 'light' | 'dark'): string {
 <script>
 (function(){
   // 1. Reformat <time data-iso="..."> in the viewer's local timezone.
+  //    Includes the end time when same-day so open-gym style slots read
+  //    "Thu, May 21 · 8:00 AM – 8:00 PM" instead of just the start.
   document.querySelectorAll('time[data-iso]').forEach(function(el){
     var d = new Date(el.getAttribute('data-iso'));
     if (isNaN(d.getTime())) return;
     var day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
     var t = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    el.textContent = day + ' · ' + t;
+    var endIso = el.getAttribute('data-end-iso');
+    var endStr = '';
+    if (endIso) {
+      var e = new Date(endIso);
+      if (!isNaN(e.getTime()) && e.toDateString() === d.toDateString()) {
+        endStr = ' – ' + e.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      }
+    }
+    el.textContent = day + ' · ' + t + endStr;
   });
   // 2. Post height to parent for auto-resize.
   function postHeight(){
