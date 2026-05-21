@@ -107,7 +107,8 @@ export async function GET(request: Request) {
     WHERE a.url IS NOT NULL
       AND a.url <> ''
       AND a.is_virtual = false
-      AND a.start_at >= now()
+      -- Show events that haven't ended yet (or, if no end_at, haven't started)
+      AND COALESCE(a.end_at, a.start_at) >= now()
       AND a.start_at <= now() + (${days}::int * interval '1 day')
       AND ST_DWithin(
         a.location::geography,

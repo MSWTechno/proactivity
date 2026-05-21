@@ -158,8 +158,8 @@ export async function GET(request: Request) {
     ) feat ON true
     WHERE a.url IS NOT NULL AND a.url <> ''
       ${isPast
-        ? sql`AND a.start_at < now() AND a.start_at >= now() - interval '90 days'`
-        : sql`AND a.start_at >= now()`}
+        ? sql`AND COALESCE(a.end_at, a.start_at) < now() AND a.start_at >= now() - interval '90 days'`
+        : sql`AND COALESCE(a.end_at, a.start_at) >= now()`}
       ${daysAhead != null
         ? sql`AND a.start_at <= now() + (${daysAhead}::int * interval '1 day')`
         : sql``}
