@@ -137,7 +137,7 @@ async function expand(
   let geocoded: { lat: number; lng: number } | null = null;
   const addr = stripIcalEscapes(ev.location);
   if (!hasEvGeo && addr) {
-    const r = await geocodeAddress(addr);
+    const r = await geocodeAddress(addr, { lat: cfg.lat, lng: cfg.lng });
     if (r) geocoded = { lat: r.lat, lng: r.lng };
   }
 

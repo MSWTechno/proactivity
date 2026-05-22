@@ -4,7 +4,29 @@ import type {
   FetchContext,
   ParseConfigResult,
 } from '../types.js';
-import { geocodeAddress } from '../geocode.js';
+import { geocodeAddress, geocodeNamedPlace } from '../geocode.js';
+
+/**
+ * Pull a venue name out of an event title like
+ *   "Matt Palmieri at Coal Ridge Brewery"
+ * Returns null if the title doesn't have a recognizable trailing
+ * "at <Proper Noun Phrase>". Conservative on purpose — false positives
+ * here send the event to a wrong-place coord, which is worse than
+ * leaving it at the source hub.
+ */
+function extractVenueFromTitle(title: string): string | null {
+  // Match " at " followed by a capitalized phrase running to end-of-
+  // title (or to a dash/comma separator). Disallow leading digits so
+  // "Concert at 7pm" doesn't match "7pm" as a venue.
+  const m = title.match(/\s+at\s+([A-Z][^,–—|()]*?)(?:\s*[–—|()].*)?$/);
+  if (!m) return null;
+  const venue = m[1]?.trim() ?? '';
+  if (venue.length < 3) return null;
+  if (/^\d/.test(venue)) return null;
+  // Reject common non-venue trailers.
+  if (/^(noon|midnight|sunset|sunrise|dusk|dawn|night|home|work)$/i.test(venue)) return null;
+  return venue;
+}
 
 /**
  * Generic scraper for sites that publish schema.org/Event JSON-LD on their
@@ -221,19 +243,33 @@ interface EventLd {
   organizer?:
     | { '@type'?: string; name?: string; url?: string }
     | Array<{ '@type'?: string; name?: string; url?: string }>;
-  location?: {
-    '@type'?: string;
-    name?: string;
-    address?:
-      | string
-      | {
-          streetAddress?: string;
-          addressLocality?: string;
-          addressRegion?: string;
-          addressCountry?: string;
-        };
-    geo?: { latitude?: number | string; longitude?: number | string };
-  };
+  location?:
+    | {
+        '@type'?: string;
+        name?: string;
+        address?:
+          | string
+          | {
+              streetAddress?: string;
+              addressLocality?: string;
+              addressRegion?: string;
+              addressCountry?: string;
+            };
+        geo?: { latitude?: number | string; longitude?: number | string };
+      }
+    | Array<{
+        '@type'?: string;
+        name?: string;
+        address?:
+          | string
+          | {
+              streetAddress?: string;
+              addressLocality?: string;
+              addressRegion?: string;
+              addressCountry?: string;
+            };
+        geo?: { latitude?: number | string; longitude?: number | string };
+      }>;
   offers?:
     | {
         lowPrice?: string | number;
@@ -304,26 +340,42 @@ async function mapToActivity(
   const availability = mapAvailability(ev, defaultAvailability);
   const isVirtual = detectVirtual(ev);
 
-  const addr = typeof ev.location?.address === 'object' ? ev.location.address : null;
-  const addressString = typeof ev.location?.address === 'string'
-    ? ev.location.address
+  // location can be a Place object OR an array of them (Visit Shenandoah
+  // and other plugins emit `location: [{...}]`). Take the first entry —
+  // multiple-venue events are rare and the first is the canonical one.
+  const loc = Array.isArray(ev.location) ? ev.location[0] : ev.location;
+  const addr = typeof loc?.address === 'object' ? loc.address : null;
+  const addressString = typeof loc?.address === 'string'
+    ? loc.address
     : [addr?.streetAddress, addr?.addressLocality, addr?.addressRegion]
         .filter((s): s is string => !!s)
         .join(', ') || null;
 
-  const evGeo = ev.location?.geo;
+  const evGeo = loc?.geo;
   const evLat = evGeo?.latitude != null ? Number(evGeo.latitude) : null;
   const evLng = evGeo?.longitude != null ? Number(evGeo.longitude) : null;
   const useEventCoords = Number.isFinite(evLat ?? NaN) && Number.isFinite(evLng ?? NaN);
 
-  // Per-event geo wins; if missing, try address geocoding (cached);
-  // ultimate fallback is the source's hub coords.
+  // Per-event geo wins; if missing, try address geocoding; if that
+  // fails (or there's no address), fall back to a title-pattern lookup
+  // for "X at <Venue Name>" biased to the source's hub coords; ultimate
+  // fallback is the source's hub itself.
+  const titleVenue = extractVenueFromTitle(ev.name ?? '');
   let location: { lat: number; lng: number };
   if (useEventCoords) {
     location = { lat: evLat!, lng: evLng! };
   } else if (addressString) {
-    const geocoded = await geocodeAddress(addressString);
-    location = geocoded ?? { lat: cfg.lat, lng: cfg.lng };
+    const geocoded = await geocodeAddress(addressString, { lat: cfg.lat, lng: cfg.lng });
+    if (geocoded) location = geocoded;
+    else if (titleVenue) {
+      const place = await geocodeNamedPlace(titleVenue, { lat: cfg.lat, lng: cfg.lng });
+      location = place ?? { lat: cfg.lat, lng: cfg.lng };
+    } else {
+      location = { lat: cfg.lat, lng: cfg.lng };
+    }
+  } else if (titleVenue) {
+    const place = await geocodeNamedPlace(titleVenue, { lat: cfg.lat, lng: cfg.lng });
+    location = place ?? { lat: cfg.lat, lng: cfg.lng };
   } else {
     location = { lat: cfg.lat, lng: cfg.lng };
   }
@@ -335,7 +387,7 @@ async function mapToActivity(
     startAt,
     endAt,
     timezone,
-    venueName: ev.location?.name ?? null,
+    venueName: loc?.name ?? titleVenue ?? null,
     address: addressString,
     city: addr?.addressLocality ?? null,
     region: addr?.addressRegion ?? null,
@@ -422,8 +474,9 @@ function detectVirtual(ev: EventLd): boolean {
   if (typeof mode === 'string') {
     if (/OnlineEventAttendanceMode|MixedEventAttendanceMode/i.test(mode)) return true;
   }
-  // Some sources publish `location: { '@type': 'VirtualLocation', url: '...' }`.
-  const loc = ev.location;
+  // Some sources publish `location: { '@type': 'VirtualLocation', url: '...' }`
+  // or wrap it in an array.
+  const loc = Array.isArray(ev.location) ? ev.location[0] : ev.location;
   const locType = typeof loc === 'object' && loc ? (loc as { '@type'?: string })['@type'] : undefined;
   if (typeof locType === 'string' && /VirtualLocation/i.test(locType)) return true;
   return false;

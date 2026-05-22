@@ -131,7 +131,7 @@ async function expandEvent(
   const rawAddress = venue?.location_address ? decodeEntities(venue.location_address) : null;
   // Geocode once per venue (helper has its own cache). Falls back to the
   // source's hub coords if Nominatim doesn't resolve the address.
-  const geo = rawAddress ? await geocodeAddress(rawAddress) : null;
+  const geo = rawAddress ? await geocodeAddress(rawAddress, { lat: cfg.lat, lng: cfg.lng }) : null;
   const location = geo ? { lat: geo.lat, lng: geo.lng } : { lng: cfg.lng, lat: cfg.lat };
 
   for (const occ of occurrences) {
