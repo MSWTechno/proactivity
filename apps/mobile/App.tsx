@@ -47,8 +47,11 @@ interface Activity {
   title: string;
   description: string | null;
   startAt: string;
+  endAt: string | null;
   venueName: string | null;
   city: string | null;
+  lat: number | null;
+  lng: number | null;
   ageRange: { min: number | null; max: number | null; label: string } | null;
   costMinCents: number | null;
   costMaxCents: number | null;
@@ -100,6 +103,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
+  const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [me, setMe] = useState<MeUser | null>(null);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -574,7 +578,14 @@ export default function App() {
           keyExtractor={(item) => ('__ad' in item ? item.key : item.id)}
           renderItem={({ item }) => {
             if ('__ad' in item) return <AdSlot kind="infeed" hidden={noAds} />;
-            return <ActivityRow activity={item} t={t} onRate={() => setRatingTarget(item)} />;
+            return (
+              <ActivityRow
+                activity={item}
+                t={t}
+                onRate={() => setRatingTarget(item)}
+                onPress={() => setDetailActivity(item)}
+              />
+            );
           }}
           ListHeaderComponent={() => <AdSlot kind="banner" hidden={noAds} />}
           renderSectionHeader={({ section: { title } }) => (
@@ -599,6 +610,15 @@ export default function App() {
               </Pressable>
             </View>
           )}
+        />
+      )}
+
+      {detailActivity && (
+        <EventDetailOverlay
+          activity={detailActivity}
+          t={t}
+          onClose={() => setDetailActivity(null)}
+          onRate={() => { setRatingTarget(detailActivity); setDetailActivity(null); }}
         />
       )}
 
@@ -695,7 +715,14 @@ function GeoBar({ geo, placeName, t }: { geo: GeoState; placeName: string | null
   return <Text style={[styles.geo, { color: t.muted }]}>{label}</Text>;
 }
 
-function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; onRate: () => void }) {
+function ActivityRow({
+  activity, t, onRate, onPress,
+}: {
+  activity: Activity;
+  t: Theme;
+  onRate: () => void;
+  onPress: () => void;
+}) {
   const [imgFailed, setImgFailed] = useState(false);
   const start = new Date(activity.startAt);
   const when = start.toLocaleString(undefined, {
@@ -722,15 +749,7 @@ function ActivityRow({ activity, t, onRate }: { activity: Activity; t: Theme; on
 
   return (
     <Pressable
-      onPress={() => {
-        // Fire-and-forget click tracking for site-wide popularity stats.
-        fetch(`${API_BASE}/api/activities/click`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: activity.id }),
-        }).catch(() => {});
-        if (activity.url) Linking.openURL(activity.url).catch(() => {});
-      }}
+      onPress={onPress}
       style={({ pressed }) => [
         styles.card,
         { backgroundColor: t.elev, borderColor: t.border },
@@ -969,6 +988,167 @@ function SubmitEventOverlay({ t, onClose }: { t: Theme; onClose: () => void }) {
           </Pressable>
         </ScrollView>
       )}
+    </View>
+  );
+}
+
+function EventDetailOverlay({
+  activity, t, onClose, onRate,
+}: {
+  activity: Activity;
+  t: Theme;
+  onClose: () => void;
+  onRate: () => void;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const start = new Date(activity.startAt);
+  const end = activity.endAt ? new Date(activity.endAt) : null;
+  const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
+  const dateLabel = start.toLocaleString(undefined, {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+  const endLabel = end && !isNaN(end.getTime())
+    ? (sameDayEnd
+        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+        : end.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))
+    : null;
+  const place = [activity.venueName, activity.city].filter(Boolean).join(' · ');
+  const price = formatPrice(activity.costMinCents, activity.costMaxCents, activity.currency);
+  const isAvailable = ['onsale', 'free', 'dropin'].includes(activity.availability);
+  const showImage = activity.imageUrl && !imgFailed;
+  const ph = placeholderFor({
+    title: activity.title,
+    venueName: activity.venueName,
+    organizerName: activity.organizer?.name,
+    canonicalCategories: activity.canonicalCategories,
+  });
+
+  const openExternal = () => {
+    // Mirror the web's behavior: only fire click-track when the user
+    // actually opens the external page, not when they tap the card.
+    fetch(`${API_BASE}/api/activities/click`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: activity.id }),
+    }).catch(() => {});
+    if (activity.url) {
+      Linking.openURL(activity.url).catch(() => {});
+      onClose();
+    }
+  };
+
+  return (
+    <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
+      <Pressable onPress={onClose} style={[styles.detailClose, { backgroundColor: t.elev, borderColor: t.border }]} hitSlop={8}>
+        <Text style={{ color: t.fg, fontSize: 14 }}>← Back</Text>
+      </Pressable>
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+        {showImage ? (
+          <Image
+            source={{ uri: activity.imageUrl! }}
+            style={styles.detailHero}
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          <View style={[styles.detailHero, styles.detailHeroPlaceholder, { backgroundColor: ph.color }]}>
+            <Text style={styles.detailHeroEmoji}>{ph.emoji}</Text>
+          </View>
+        )}
+
+        <Text style={[styles.detailTitle, { color: t.fg }]}>{activity.title}</Text>
+
+        {activity.organizer?.name && (
+          <Text style={[styles.detailOrg, { color: t.muted }]}>
+            by <Text style={{ color: t.fg, fontWeight: '600' }}>{activity.organizer.name}</Text>
+            {activity.organizer.ratingCount > 0 && activity.organizer.ratingAverage != null && (
+              <Text style={{ color: '#f59e0b' }}>  ★ {activity.organizer.ratingAverage.toFixed(1)} <Text style={{ color: t.subtle }}>({activity.organizer.ratingCount})</Text></Text>
+            )}
+          </Text>
+        )}
+
+        <View style={[styles.detailMetaBlock, { borderColor: t.border }]}>
+          <Text style={[styles.detailMetaLabel, { color: t.muted }]}>When</Text>
+          <Text style={[styles.detailMetaValue, { color: t.fg }]}>
+            {dateLabel}{endLabel ? ` → ${endLabel}` : ''}
+          </Text>
+        </View>
+
+        {place && (() => {
+          // Coords beat free-text address for accurate routing — fall back
+          // to the readable place string only when we have no pin.
+          const dest = activity.lat != null && activity.lng != null
+            ? `${activity.lat},${activity.lng}`
+            : place;
+          const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`;
+          return (
+            <Pressable
+              onPress={() => Linking.openURL(mapsUrl).catch(() => {})}
+              style={[styles.detailMetaBlock, { borderColor: t.border }]}
+            >
+              <Text style={[styles.detailMetaLabel, { color: t.muted }]}>Where</Text>
+              <Text style={[styles.detailMetaValue, { color: t.accent }]}>{place} ↗</Text>
+            </Pressable>
+          );
+        })()}
+
+        <View style={styles.detailBadgeRow}>
+          <View style={[styles.badge, { backgroundColor: isAvailable ? t.successSoft : t.dangerSoft }]}>
+            <Text style={{ color: isAvailable ? t.success : t.danger, fontSize: 12 }}>
+              {availabilityLabel(activity.availability)}
+            </Text>
+          </View>
+          {price && (
+            <View style={[styles.badge, { backgroundColor: t.elev, borderColor: t.border, borderWidth: 1 }]}>
+              <Text style={{ color: t.fg, fontSize: 12, fontWeight: '600' }}>{price}</Text>
+            </View>
+          )}
+          {activity.ageRange && (
+            <View style={[styles.badge, { backgroundColor: t.accent + '22' }]}>
+              <Text style={{ color: t.accent, fontSize: 12 }}>{activity.ageRange.label}</Text>
+            </View>
+          )}
+          {activity.ratingCount > 0 && activity.ratingAverage != null && (
+            <Text style={{ color: '#f59e0b', fontSize: 13, fontWeight: '500', alignSelf: 'center' }}>
+              ★ {activity.ratingAverage.toFixed(1)} <Text style={{ color: t.subtle }}>({activity.ratingCount})</Text>
+            </Text>
+          )}
+        </View>
+
+        {activity.url && (
+          <Pressable
+            onPress={openExternal}
+            style={[styles.onboardPrimary, { backgroundColor: t.accent, marginTop: 16 }]}
+          >
+            <Text style={styles.onboardPrimaryText}>Get tickets / official page ↗</Text>
+          </Pressable>
+        )}
+
+        {activity.description && (
+          <View style={{ marginTop: 20 }}>
+            <Text style={[styles.detailSectionHeading, { color: t.fg }]}>About</Text>
+            <Text style={[styles.detailDescription, { color: t.fg }]}>{activity.description}</Text>
+          </View>
+        )}
+
+        {activity.canonicalCategories.length > 0 && (
+          <View style={styles.detailTagRow}>
+            {activity.canonicalCategories.slice(0, 6).map((k) => (
+              <View key={k} style={[styles.detailTag, { borderColor: t.border, backgroundColor: t.elev }]}>
+                <Text style={{ color: t.fg, fontSize: 12 }}>{CATEGORIES[k].emoji} {CATEGORIES[k].label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <Pressable onPress={onRate} style={[styles.onboardSkip, { marginTop: 12 }]}>
+          <Text style={[styles.onboardSkipText, { color: t.accent }]}>Rate this event ▸</Text>
+        </Pressable>
+
+        <Text style={[styles.detailDisclaimer, { color: t.subtle }]}>
+          Aggregated from public sources. Verify details with the organizer before attending.
+        </Text>
+      </ScrollView>
     </View>
   );
 }
@@ -1273,6 +1453,21 @@ const styles = StyleSheet.create({
   onboardPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   onboardSkip: { paddingVertical: 12, alignItems: 'center' },
   onboardSkipText: { fontSize: 13 },
+  detailClose: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 8 },
+  detailHero: { width: '100%', aspectRatio: 16 / 9, borderRadius: 12, backgroundColor: '#e5e7eb' },
+  detailHeroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  detailHeroEmoji: { fontSize: 64 },
+  detailTitle: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, marginTop: 14 },
+  detailOrg: { fontSize: 14, marginTop: 4 },
+  detailMetaBlock: { marginTop: 14, borderTopWidth: 1, paddingTop: 10 },
+  detailMetaLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  detailMetaValue: { fontSize: 15, lineHeight: 21 },
+  detailBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 14 },
+  detailSectionHeading: { fontSize: 16, fontWeight: '600', marginBottom: 6 },
+  detailDescription: { fontSize: 14, lineHeight: 21 },
+  detailTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 16 },
+  detailTag: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1 },
+  detailDisclaimer: { fontSize: 11, marginTop: 20, textAlign: 'center' },
   cardRateBtn: { position: 'absolute', right: 10, bottom: 8, paddingVertical: 2 },
   starRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginVertical: 12 },
   ratingTextarea: {

@@ -172,15 +172,46 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
   });
   const place = [e.venueName, e.address, e.city, e.region].filter(Boolean).join(', ');
+  // Coords beat free-text for Google Maps directions because the address
+  // geocoder occasionally lands on a similarly-named place in another
+  // state. Fall back to address only when we have no pin.
+  const mapsDestination = e.lat != null && e.lng != null
+    ? `${e.lat},${e.lng}`
+    : place || e.venueName || '';
+  const mapsUrl = mapsDestination
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapsDestination)}`
+    : null;
   const price = formatPrice(e.costMinCents, e.costMaxCents, e.currency);
 
   // schema.org Event JSON-LD — gives Google Events rich result eligibility.
+  // Image, offers (with price/priceCurrency/validFrom) and performer all
+  // have fallbacks because Google Search Console flags missing fields as
+  // non-critical issues — defaults keep us rich-result eligible across
+  // sparsely-fielded sources like iCal feeds.
+  const imageFallback = `${SITE_BASE}/proactivity-icon-1080.png`;
+  const offerCurrency = e.currency ?? 'USD';
+  const offerPrice = e.costMinCents != null ? (e.costMinCents / 100).toFixed(2) : '0';
+  // validFrom = "when this offer became available". We don't track listing
+  // date per-row; ISO-now is the closest honest answer (offer is available
+  // as of page render) and Google accepts it.
+  const offerValidFrom = new Date().toISOString();
+  const organizerEntity = e.organizerName
+    ? {
+        '@type': 'Organization',
+        name: e.organizerName,
+        ...(e.organizerUrl ? { url: e.organizerUrl } : {}),
+      }
+    : null;
+
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Event',
     name: e.title,
     startDate: start.toISOString(),
-    ...(end ? { endDate: end.toISOString() } : {}),
+    // Google flags missing endDate as a non-critical issue, so we
+    // default to start + 2h for sources that don't supply one (most
+    // aggregated listings are 1–3h).
+    endDate: (end ?? new Date(start.getTime() + 2 * 60 * 60 * 1000)).toISOString(),
     eventAttendanceMode: e.isVirtual
       ? 'https://schema.org/OnlineEventAttendanceMode'
       : 'https://schema.org/OfflineEventAttendanceMode',
@@ -189,8 +220,19 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       : 'https://schema.org/EventScheduled',
     url: `${SITE_BASE}/event/${e.id}`,
     ...(e.description ? { description: e.description } : {}),
-    ...(e.imageUrl ? { image: [e.imageUrl] } : {}),
-    ...(e.url ? { offers: { '@type': 'Offer', url: e.url, availability: 'https://schema.org/InStock', ...(e.costMinCents != null ? { price: (e.costMinCents / 100).toFixed(2), priceCurrency: e.currency ?? 'USD' } : {}) } } : {}),
+    image: [e.imageUrl ?? imageFallback],
+    ...(e.url
+      ? {
+          offers: {
+            '@type': 'Offer',
+            url: e.url,
+            availability: 'https://schema.org/InStock',
+            price: offerPrice,
+            priceCurrency: offerCurrency,
+            validFrom: offerValidFrom,
+          },
+        }
+      : {}),
     ...(e.venueName || e.address ? {
       location: {
         '@type': 'Place',
@@ -207,13 +249,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         ...(e.lat != null && e.lng != null ? { geo: { '@type': 'GeoCoordinates', latitude: e.lat, longitude: e.lng } } : {}),
       },
     } : {}),
-    ...(e.organizerName ? {
-      organizer: {
-        '@type': 'Organization',
-        name: e.organizerName,
-        ...(e.organizerUrl ? { url: e.organizerUrl } : {}),
-      },
-    } : {}),
+    ...(organizerEntity
+      ? {
+          organizer: organizerEntity,
+          // performer defaults to the organizer for aggregated events —
+          // we rarely know the actual artist/speaker separately.
+          performer: organizerEntity,
+        }
+      : {}),
   };
 
   return (
@@ -259,7 +302,16 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         <div className="event-detail-meta">
           <div><strong>When</strong><br />{dateLabel}{end ? <> &nbsp;→&nbsp; {end.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</> : null}</div>
-          {place && <div><strong>Where</strong><br />{place}</div>}
+          {place && (
+            <div>
+              <strong>Where</strong><br />
+              {mapsUrl ? (
+                <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+                  {place} <span aria-hidden>↗</span>
+                </a>
+              ) : place}
+            </div>
+          )}
           {price && <div><strong>Price</strong><br />{price}</div>}
           {ageRange && <div><strong>Ages</strong><br />{ageRange.label}</div>}
         </div>
