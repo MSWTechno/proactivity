@@ -27,7 +27,13 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     RETURNING url
   `) as unknown as { url: string | null }[];
   const url = rows[0]?.url;
-  if (!url) {
+  // Guard: some feeds (CivicEngage's iCal export, for one) populate URL
+  // with a relative path. NextResponse.redirect on a relative path
+  // resolves it against the request origin and lands users on our own
+  // 404. Treat anything non-absolute as "no real link" and bounce to
+  // the in-house detail page instead.
+  const isAbsolute = url && /^https?:\/\//i.test(url);
+  if (!isAbsolute) {
     return NextResponse.redirect(new URL(`/event/${id}`, _request.url), { status: 302 });
   }
   return NextResponse.redirect(url, { status: 302 });

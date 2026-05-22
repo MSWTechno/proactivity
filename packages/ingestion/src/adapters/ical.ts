@@ -178,7 +178,24 @@ function mapInstance(
   const { organizerName, organizerUrl } = parseOrganizer(evExtra.organizer);
 
   const address = stripIcalEscapes(ev.location) ?? null;
-  const description = stripIcalEscapes(ev.description) ?? null;
+  const rawDescription = stripIcalEscapes(ev.description) ?? null;
+  // CivicEngage (Spotsylvania County, others) sets URL: to the feed's
+  // own relative path and puts the actual event-detail URL as the first
+  // token of DESCRIPTION. Extract it and strip from the description so
+  // we don't render the bare URL twice on the detail page.
+  const descUrlMatch = rawDescription?.match(/^\s*(https?:\/\/\S+)\s*\n?/);
+  const descUrl = descUrlMatch?.[1] ?? null;
+  const description = descUrlMatch
+    ? rawDescription!.slice(descUrlMatch[0].length).trim() || null
+    : rawDescription;
+
+  // URL resolution: prefer URL: when it's absolute, else any absolute
+  // URL we extracted from the description, else null (the /go endpoint
+  // bounces to /event/[id] for events with no real outbound link).
+  const evUrlRaw = ev.url && typeof ev.url === 'string' ? ev.url.trim() : null;
+  const url = evUrlRaw && /^https?:\/\//i.test(evUrlRaw)
+    ? evUrlRaw
+    : descUrl;
 
   // Prefer per-event GEO when the iCal feed carries it (RFC 5545 GEO
   // property is parsed by node-ical as { lat, lon }). Without this every
@@ -218,7 +235,7 @@ function mapInstance(
     organizerName,
     organizerUrl,
     organizerKey: null, // runner derives
-    url: ev.url ?? null,
+    url,
     imageUrl: null,
     categories,
     raw: {
