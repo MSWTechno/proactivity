@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { requireAdmin } from '@/lib/admin-auth';
+import { LOCATION_PRESETS } from '@/lib/locations';
+
+/**
+ * Haversine between (lat1,lng1) and (lat2,lng2) in km. We could do this
+ * in Postgres with ST_Distance for accuracy, but admin already has
+ * lat/lng in the config jsonb and JS arithmetic is plenty for a "which
+ * preset is closest" tag — saves us a per-row PostGIS call.
+ */
+function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function nearestPresetId(lat: number | null, lng: number | null): string | null {
+  if (lat == null || lng == null) return null;
+  let best: { id: string; km: number } | null = null;
+  for (const p of LOCATION_PRESETS) {
+    const km = distanceKm(lat, lng, p.lat, p.lng);
+    if (!best || km < best.km) best = { id: p.id, km };
+  }
+  return best?.id ?? null;
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,6 +51,12 @@ export async function GET() {
       s.id, s.name, s.adapter_key, s.enabled,
       s.last_run_at, s.last_status, s.last_error,
       s.created_at, s.updated_at,
+      -- All adapter configs that carry a hub coord put it at top-level
+      -- as { lat, lng } (ical / rss / jsonld-event / ticketmaster /
+      -- eventon all follow this convention). The organizer/manual
+      -- adapters don't, and return null here.
+      (s.config->>'lat')::float8 AS lat,
+      (s.config->>'lng')::float8 AS lng,
       COALESCE(stats.total, 0)::int AS total_events,
       COALESCE(stats.upcoming, 0)::int AS upcoming_events,
       COALESCE(stats.added_24h, 0)::int AS added_24h,
@@ -55,6 +89,8 @@ export async function GET() {
     upcoming_events: number;
     added_24h: number;
     added_7d: number;
+    lat: number | null;
+    lng: number | null;
   }>;
 
   return NextResponse.json({
@@ -72,6 +108,9 @@ export async function GET() {
       upcomingEvents: r.upcoming_events,
       added24h: r.added_24h,
       added7d: r.added_7d,
+      lat: r.lat,
+      lng: r.lng,
+      nearestPresetId: nearestPresetId(r.lat, r.lng),
     })),
   });
 }

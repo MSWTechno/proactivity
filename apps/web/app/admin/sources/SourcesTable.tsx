@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '../../Logo';
 import { AreaRequestsBadge } from '../_components/AreaRequestsBadge';
+import { LOCATION_PRESETS } from '@/lib/locations';
 
 interface SourceRow {
   id: string;
@@ -20,7 +21,17 @@ interface SourceRow {
   upcomingEvents: number;
   added24h: number;
   added7d: number;
+  lat: number | null;
+  lng: number | null;
+  /** Closest LOCATION_PRESETS id, or null for sources with no coords. */
+  nearestPresetId: string | null;
 }
+
+// Sentinel for the location filter dropdown. Sources without coords
+// (manual / organizer adapters) get their own bucket so they don't
+// silently disappear when the admin filters by a real location.
+const LOCATION_FILTER_ALL = '__all__';
+const LOCATION_FILTER_NONE = '__none__';
 
 const STALE_HOURS = 30; // a daily-cron source older than 30h is suspicious
 
@@ -54,6 +65,7 @@ export default function SourcesTable() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [triggerResult, setTriggerResult] = useState<string | null>(null);
+  const [locationFilter, setLocationFilter] = useState<string>(LOCATION_FILTER_ALL);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -101,6 +113,20 @@ export default function SourcesTable() {
   const errorCount = enabled.filter((s) => s.lastStatus === 'error').length;
   const staleCount = enabled.filter((s) => s.lastRunAt && (Date.now() - new Date(s.lastRunAt).getTime()) / 3.6e6 > STALE_HOURS).length;
 
+  // Counts per preset for the dropdown labels — gives the admin a
+  // sense of source density at a glance without expanding.
+  const presetCounts = new Map<string | null, number>();
+  for (const s of items) {
+    const k = s.nearestPresetId ?? null;
+    presetCounts.set(k, (presetCounts.get(k) ?? 0) + 1);
+  }
+
+  const visibleItems = items.filter((s) => {
+    if (locationFilter === LOCATION_FILTER_ALL) return true;
+    if (locationFilter === LOCATION_FILTER_NONE) return s.nearestPresetId == null;
+    return s.nearestPresetId === locationFilter;
+  });
+
   return (
     <main className="admin-main">
       <header className="admin-header">
@@ -146,6 +172,36 @@ export default function SourcesTable() {
       )}
       {error && <div className="error">Failed to load: {error}</div>}
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 13 }}>
+        <label htmlFor="loc-filter" style={{ color: 'var(--fg-muted)' }}>Location:</label>
+        <select
+          id="loc-filter"
+          value={locationFilter}
+          onChange={(e) => setLocationFilter(e.target.value)}
+          style={{
+            padding: '4px 8px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'var(--elev)',
+            color: 'var(--fg)',
+            fontSize: 13,
+          }}
+        >
+          <option value={LOCATION_FILTER_ALL}>All ({items.length})</option>
+          {LOCATION_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label} ({presetCounts.get(p.id) ?? 0})
+            </option>
+          ))}
+          <option value={LOCATION_FILTER_NONE}>No location ({presetCounts.get(null) ?? 0})</option>
+        </select>
+        {visibleItems.length !== items.length && (
+          <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>
+            Showing {visibleItems.length} of {items.length}
+          </span>
+        )}
+      </div>
+
       <table className="admin-table">
         <thead>
           <tr>
@@ -164,13 +220,23 @@ export default function SourcesTable() {
           {!loading && items.length === 0 && (
             <tr><td colSpan={6} className="admin-empty-row">No sources configured.</td></tr>
           )}
-          {items.map((s) => {
+          {!loading && items.length > 0 && visibleItems.length === 0 && (
+            <tr><td colSpan={6} className="admin-empty-row">No sources match this location filter.</td></tr>
+          )}
+          {visibleItems.map((s) => {
             const health = healthStatus(s);
             return (
               <tr key={s.id} style={{ opacity: s.enabled ? 1 : 0.6 }}>
                 <td>
                   <div style={{ fontWeight: 500 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'monospace' }}>{s.adapterKey}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'monospace' }}>
+                    {s.adapterKey}
+                    {s.nearestPresetId && (
+                      <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 4, background: 'var(--elev)', color: 'var(--fg-muted)' }}>
+                        {LOCATION_PRESETS.find((p) => p.id === s.nearestPresetId)?.label ?? s.nearestPresetId}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <span

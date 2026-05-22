@@ -29,6 +29,26 @@ export const LOCATION_PRESETS = [
     seoCity: 'Lake Anna',
     seoRegion: 'VA',
   },
+  {
+    id: 'cape-charles',
+    label: 'Cape Charles, VA',
+    lat: 37.2682,
+    lng: -76.0152,
+    seoSlug: 'cape-charles-va',
+    seoCity: 'Cape Charles',
+    seoRegion: 'VA',
+  },
+  {
+    id: 'yosemite',
+    label: 'Yosemite, CA',
+    // Yosemite Valley (Village area) — central reference point for the
+    // park + gateway towns (Mariposa, El Portal, Wawona, Groveland).
+    lat: 37.8651,
+    lng: -119.5383,
+    seoSlug: 'yosemite-ca',
+    seoCity: 'Yosemite',
+    seoRegion: 'CA',
+  },
 ] as const;
 
 export type LocationPresetId = (typeof LOCATION_PRESETS)[number]['id'];
