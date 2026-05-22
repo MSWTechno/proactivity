@@ -32,13 +32,27 @@ export default async function AddEventPage({
       .limit(1);
     const sub = rows[0];
     if (sub) {
-      // datetime-local inputs expect "YYYY-MM-DDTHH:mm" (no timezone, no seconds).
+      // datetime-local inputs expect "YYYY-MM-DDTHH:mm" with no timezone.
+      // This runs server-side (Vercel = UTC), so `.getHours()` returns
+      // UTC hours and the admin sees the time shifted by their local
+      // offset (a 6pm ET event renders as "22:00" in the form). Convert
+      // explicitly via Intl in America/New_York since every active
+      // source serves VA/Eastern events. If we ever ingest Pacific
+      // events we'd plumb the timezone from event_data here instead.
       const toLocalInput = (iso: string | null | undefined): string => {
         if (!iso) return '';
         const d = new Date(iso);
         if (isNaN(d.getTime())) return '';
-        const pad = (n: number) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        // formatToParts in en-CA gives ISO-friendly numeric tokens.
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/New_York',
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        }).formatToParts(d);
+        const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+        // hour can come back as "24" at midnight in some ICU builds — normalize.
+        const hh = get('hour') === '24' ? '00' : get('hour');
+        return `${get('year')}-${get('month')}-${get('day')}T${hh}:${get('minute')}`;
       };
       // Newer submissions carry structured event_data; older ones don't.
       // When present, prefill every form field from event_data only —
