@@ -9,12 +9,36 @@
  */
 
 export const LOCATION_PRESETS = [
-  { id: 'harrisonburg', label: 'Harrisonburg, VA', lat: 38.4496, lng: -78.8689 },
-  { id: 'lake-anna',    label: 'Lake Anna, VA',    lat: 37.989,  lng: -77.886  },
+  {
+    id: 'harrisonburg',
+    label: 'Harrisonburg, VA',
+    lat: 38.4496,
+    lng: -78.8689,
+    // SEO-friendly slug used in URLs like /things-to-do/harrisonburg-va.
+    // Distinct from `id` (kept short for the homepage picker and API).
+    seoSlug: 'harrisonburg-va',
+    seoCity: 'Harrisonburg',
+    seoRegion: 'VA',
+  },
+  {
+    id: 'lake-anna',
+    label: 'Lake Anna, VA',
+    lat: 37.989,
+    lng: -77.886,
+    seoSlug: 'lake-anna-va',
+    seoCity: 'Lake Anna',
+    seoRegion: 'VA',
+  },
 ] as const;
 
 export type LocationPresetId = (typeof LOCATION_PRESETS)[number]['id'];
+export type LocationPreset = (typeof LOCATION_PRESETS)[number];
 
-export function findPreset(id: string): typeof LOCATION_PRESETS[number] | null {
+export function findPreset(id: string): LocationPreset | null {
   return LOCATION_PRESETS.find((p) => p.id === id) ?? null;
+}
+
+/** Look up by the SEO slug (e.g. "harrisonburg-va"). */
+export function findPresetBySeoSlug(slug: string): LocationPreset | null {
+  return LOCATION_PRESETS.find((p) => p.seoSlug === slug) ?? null;
 }

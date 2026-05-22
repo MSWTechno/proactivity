@@ -128,7 +128,12 @@ export function placeholderFor(input: {
   // rule has a chance to match the title.
   const haystack = [input.title, input.venueName, input.organizerName].filter(Boolean).join(' • ');
   const matched = TITLE_EMOJI_RULES.find((rule) => rule.pattern.test(haystack));
-  const firstCat = input.canonicalCategories?.find((k) => k !== 'other') as CategoryKey | undefined;
+  // Defensive: ignore unknown keys. Callers may accidentally pass raw
+  // source categories instead of canonical ones, and CATEGORIES[bad].emoji
+  // is what crashed the SEO landing page on first deploy.
+  const firstCat = input.canonicalCategories?.find(
+    (k) => k !== 'other' && k in CATEGORIES,
+  ) as CategoryKey | undefined;
   const categoryEmoji = firstCat ? CATEGORIES[firstCat].emoji : null;
   return {
     emoji: matched?.emoji ?? categoryEmoji ?? '✨',

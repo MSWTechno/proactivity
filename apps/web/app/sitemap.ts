@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { sql } from '@proactivity/db';
+import { LOCATION_PRESETS } from '@/lib/locations';
+import { WINDOWS } from '@/lib/seo-windows';
 
 const SITE_BASE = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? 'https://proactivity.app';
 
@@ -24,6 +26,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: SITE_BASE + '/privacy',      lastModified: now, changeFrequency: 'yearly',  priority: 0.2 },
   ];
 
+  // SEO landing pages — one per city, plus one per city × time/category
+  // window. These target long-tail queries like "things to do harrisonburg
+  // this weekend" and form the topical hub for each location.
+  const landingEntries: MetadataRoute.Sitemap = [];
+  for (const p of LOCATION_PRESETS) {
+    landingEntries.push({
+      url: `${SITE_BASE}/things-to-do/${p.seoSlug}`,
+      lastModified: now,
+      changeFrequency: 'daily',
+      priority: 0.9,
+    });
+    for (const w of WINDOWS) {
+      landingEntries.push({
+        url: `${SITE_BASE}/things-to-do/${p.seoSlug}/${w.slug}`,
+        lastModified: now,
+        // Time-window pages roll over with the calendar; category pages
+        // change as new events get tagged. Both = daily-ish.
+        changeFrequency: 'daily',
+        priority: 0.85,
+      });
+    }
+  }
+
   let eventEntries: MetadataRoute.Sitemap = [];
   try {
     const rows = (await sql`
@@ -47,5 +72,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // routes only. Google will retry.
   }
 
-  return [...evergreen, ...eventEntries];
+  return [...evergreen, ...landingEntries, ...eventEntries];
 }
