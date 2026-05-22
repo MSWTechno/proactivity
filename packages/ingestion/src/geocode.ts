@@ -76,11 +76,27 @@ export async function geocodeAddress(rawAddr: string | null | undefined): Promis
     await cacheResult(normalized, null, null, 'not_found');
     return null;
   }
+  // Try to peel out street/city/state/postalcode. Nominatim's structured
+  // search is dramatically more reliable than freeform for US addresses
+  // whose mailing city doesn't match the OSM municipality (e.g. Patriot
+  // Park's "Fredericksburg, VA 22408" mailing addr is really in
+  // Spotsylvania County — freeform returns empty, structured finds it).
+  const structured = parseUsAddress(upstreamQuery);
 
   return withNominatimSlot(async () => {
     try {
       const url = new URL(NOMINATIM_URL);
-      url.searchParams.set('q', upstreamQuery);
+      if (structured) {
+        // Structured form: street + state + (postalcode if known) +
+        // country. Skip city because it's the part most likely to be a
+        // mailing-only mismatch.
+        url.searchParams.set('street', structured.street);
+        url.searchParams.set('state', structured.state);
+        if (structured.postalcode) url.searchParams.set('postalcode', structured.postalcode);
+        url.searchParams.set('country', 'US');
+      } else {
+        url.searchParams.set('q', upstreamQuery);
+      }
       url.searchParams.set('format', 'json');
       url.searchParams.set('limit', '1');
       url.searchParams.set('addressdetails', '0');
@@ -117,10 +133,14 @@ export async function geocodeAddress(rawAddr: string | null | undefined): Promis
 function normalizeAddress(addr: string): string {
   // Lowercase + collapse whitespace + strip surrounding punctuation.
   // Keeps "1491 virginia ave, harrisonburg, va 22802, usa" as a stable key.
+  // CivicEngage (Spotsylvania) prefixes locations with " - " which
+  // Nominatim then chokes on — eat any leading non-alphanumeric run so
+  // we send "5710 smith station road..." not "- 5710 smith station...".
   return addr
     .normalize('NFKC')
     .replace(/\s+/g, ' ')
-    .replace(/^\s*[,;]+\s*|\s*[,;]+\s*$/g, '')
+    .replace(/^[^A-Za-z0-9]+/, '')
+    .replace(/[^A-Za-z0-9]+$/, '')
     .trim()
     .toLowerCase()
     .slice(0, 300);
@@ -182,6 +202,44 @@ function buildGeocodeQuery(normalized: string): string {
 
   q = deduped.join(', ').replace(/\s+/g, ' ').trim();
   return q;
+}
+
+/**
+ * Best-effort parse of a US street address into structured Nominatim
+ * fields. Returns null when the address doesn't have a recognisable
+ * "<number> <street> ... <STATE> [ZIP]" shape — the caller falls back
+ * to freeform `q=` in that case.
+ *
+ * Works for both comma-separated ("5710 Smith Station Road,
+ * Fredericksburg, VA 22408") and the space-only CivicEngage shape
+ * ("5710 smith station road fredericksburg va 22408").
+ */
+function parseUsAddress(s: string): { street: string; state: string; postalcode?: string } | null {
+  // Trailing 2-letter state, optionally followed by a 5-digit ZIP.
+  const m = s.match(/\b([a-z]{2})\b[,\s]+(\d{5})(?:-\d{4})?\s*$/i)
+    ?? s.match(/\b([a-z]{2})\b\s*$/i);
+  if (!m) return null;
+  const state = m[1]!.toUpperCase();
+  const postalcode = m[2];
+
+  // Everything before the state token. Trim trailing commas/spaces.
+  const beforeState = s.slice(0, m.index).replace(/[,\s]+$/, '').trim();
+  if (!/^\s*\d/.test(beforeState)) return null; // must start with a house number
+
+  // Cut off at the last street-suffix token. This drops trailing city
+  // names that Nominatim treats as junk in the street field — Patriot
+  // Park resolves with "5710 smith station road" but fails with
+  // "5710 smith station road fredericksburg".
+  // Pattern: word boundary, the suffix, then either end-of-string OR
+  // a comma OR a space-then-word. Capture position via match index.
+  const suffix = /\b(road|rd|street|st|avenue|ave|boulevard|blvd|drive|dr|lane|ln|way|court|ct|place|pl|highway|hwy|parkway|pkwy|circle|cir|pike|terrace|ter|trail|trl|loop|alley|aly)\b/gi;
+  let lastEnd = -1;
+  let mm: RegExpExecArray | null;
+  while ((mm = suffix.exec(beforeState)) !== null) lastEnd = mm.index + mm[0].length;
+  const street = lastEnd > 0
+    ? beforeState.slice(0, lastEnd).replace(/[,\s]+$/, '')
+    : beforeState;
+  return { street, state, ...(postalcode ? { postalcode } : {}) };
 }
 
 async function cacheResult(
