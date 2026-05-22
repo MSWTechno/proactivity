@@ -5,6 +5,7 @@ import type {
   FetchContext,
   ParseConfigResult,
 } from '../types.js';
+import { geocodeAddress } from '../geocode.js';
 
 interface IcalConfig {
   url: string;
@@ -92,23 +93,23 @@ export const icalAdapter: SourceAdapter = {
     for (const key in data) {
       const ev = data[key];
       if (!ev || ev.type !== 'VEVENT') continue;
-      yield* expand(ev, now, horizon, config, defaultAvailability, defaultDurationMs);
+      yield* await expand(ev, now, horizon, config, defaultAvailability, defaultDurationMs);
     }
   },
 };
 
-function* expand(
+async function expand(
   ev: ical.VEvent,
   now: Date,
   horizon: Date,
   cfg: IcalConfig,
   defaultAvailability: NormalizedActivity['availability'],
   defaultDurationMs: number,
-): Iterable<NormalizedActivity> {
+): Promise<NormalizedActivity[]> {
   // VEVENT.start is a Date with extra fields (.tz). VEVENT.end may be undefined.
   const baseStart = ev.start as Date | undefined;
   const baseEnd = ev.end as Date | undefined;
-  if (!baseStart) return;
+  if (!baseStart) return [];
 
   const baseDurationMs =
     baseEnd && baseEnd.getTime() > baseStart.getTime()
@@ -126,11 +127,27 @@ function* expand(
       ? [baseStart]
       : [];
 
+  if (occurrences.length === 0) return [];
+
+  // Geocode the LOCATION once per VEVENT and share across all occurrences —
+  // recurring events have one venue, no need to hit Nominatim N times.
+  // Per-event GEO still wins if present (set inside mapInstance).
+  const evGeo = (ev as ical.VEvent & { geo?: { lat?: number; lon?: number } }).geo;
+  const hasEvGeo = typeof evGeo?.lat === 'number' && typeof evGeo?.lon === 'number';
+  let geocoded: { lat: number; lng: number } | null = null;
+  const addr = stripIcalEscapes(ev.location);
+  if (!hasEvGeo && addr) {
+    const r = await geocodeAddress(addr);
+    if (r) geocoded = { lat: r.lat, lng: r.lng };
+  }
+
+  const out: NormalizedActivity[] = [];
   for (const start of occurrences) {
     if (exdates.has(normalizeExdateKey(start.toISOString()))) continue;
     const end = new Date(start.getTime() + baseDurationMs);
-    yield mapInstance(ev, start, end, cfg, defaultAvailability);
+    out.push(mapInstance(ev, start, end, cfg, defaultAvailability, geocoded));
   }
+  return out;
 }
 
 function normalizeExdateKey(s: string): string {
@@ -144,6 +161,7 @@ function mapInstance(
   end: Date,
   cfg: IcalConfig,
   defaultAvailability: NormalizedActivity['availability'],
+  geocodedAddress: { lat: number; lng: number } | null,
 ): NormalizedActivity {
   const isRecurring = ev.rrule != null;
   // Recurring instances need unique source IDs per occurrence so re-ingestion
@@ -167,12 +185,15 @@ function mapInstance(
   // event from a source ends up sharing the source-hub coords, which
   // collapses distance display to 0.0 mi when the user is centered on
   // that hub.
+  // Priority: per-event GEO > geocoded LOCATION text > source-default hub.
   const evGeo = (ev as ical.VEvent & { geo?: { lat?: number; lon?: number } }).geo;
   const evLat = typeof evGeo?.lat === 'number' && Number.isFinite(evGeo.lat) ? evGeo.lat : null;
   const evLng = typeof evGeo?.lon === 'number' && Number.isFinite(evGeo.lon) ? evGeo.lon : null;
   const location = evLat != null && evLng != null
     ? { lat: evLat, lng: evLng }
-    : { lng: cfg.lng, lat: cfg.lat };
+    : geocodedAddress
+      ? geocodedAddress
+      : { lng: cfg.lng, lat: cfg.lat };
 
   return {
     sourceEventId,
