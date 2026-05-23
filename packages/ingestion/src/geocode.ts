@@ -128,26 +128,26 @@ export async function geocodeAddress(
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       if (!res.ok) {
-        await cacheResult(normalized, null, null, 'error');
+        await cacheResult(cacheKey, null, null, 'error');
         return null;
       }
       const json = (await res.json()) as Array<{ lat?: string; lon?: string }>;
       const hit = json[0];
       if (!hit || !hit.lat || !hit.lon) {
-        await cacheResult(normalized, null, null, 'not_found');
+        await cacheResult(cacheKey, null, null, 'not_found');
         return null;
       }
       const lat = parseFloat(hit.lat);
       const lng = parseFloat(hit.lon);
       if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        await cacheResult(normalized, null, null, 'not_found');
+        await cacheResult(cacheKey, null, null, 'not_found');
         return null;
       }
-      await cacheResult(normalized, lat, lng, 'ok');
+      await cacheResult(cacheKey, lat, lng, 'ok');
       return { lat, lng };
     } catch (e) {
       console.warn(`[geocode] failed for "${normalized}":`, e instanceof Error ? e.message : e);
-      await cacheResult(normalized, null, null, 'error');
+      await cacheResult(cacheKey, null, null, 'error');
       return null;
     }
   });
