@@ -30,6 +30,7 @@ export default function PrivacyPage() {
           <li>We collect as little as possible. Your email if you sign in. Your location, in real time, if you let us — we don't keep it.</li>
           <li>We don't sell your data and we don't use third-party analytics or tracking pixels.</li>
           <li>We show ads from Google AdSense on the website and Google AdMob in the mobile app. Both use Google's privacy controls; the EU/UK/Switzerland consent banner is shown where required. The mobile app requests <em>non-personalized</em> ads by default, so no advertising-ID tracking happens unless we add explicit opt-in.</li>
+          <li>Some pages link to lodging partners (Vrbo, Expedia) as <strong>affiliate links</strong>. When you click one, the partner may set a tracking cookie so we get a small commission if you book. The price you pay is the same.</li>
           <li>You can ask us to delete your account or your data any time via our <Link href="/contact">contact form</Link>.</li>
         </ul>
       </section>
@@ -88,6 +89,7 @@ export default function PrivacyPage() {
         <li><strong>Google Analytics</strong> (website). Aggregates anonymized traffic data (page views, referrers, approximate country/region) so we can understand which features are useful. Sets the <code>_ga</code> family of cookies. We do not configure Google Analytics to receive your email, name, or other identifying information. <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
         <li><strong>Google AdSense</strong> (advertising, website). Loads ads on the website and may set cookies for ad personalization. Subject to Google's consent banner in the EU/UK/Switzerland. <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy policy</a>.</li>
         <li><strong>Google AdMob</strong> (advertising, mobile app). The mobile-app counterpart to AdSense. We request <strong>non-personalized ads only</strong> by default, which means we don't ask the OS for your advertising identifier (IDFA on iOS) and AdMob shows contextual ads rather than ads targeted to your activity. <a href="https://support.google.com/admob/answer/6128543" target="_blank" rel="noreferrer">AdMob's data disclosure</a>.</li>
+        <li><strong>CJ Affiliate (Commission Junction)</strong> (affiliate links). On some pages we link to lodging partners (Vrbo, Expedia). When you click one of these links, CJ may set a tracking cookie so that a partner can attribute a resulting booking to us and pay us a small commission. You pay nothing extra. <a href="https://www.cj.com/legal/privacy-policy-publishers-and-advertisers-prior-3-15-2024" target="_blank" rel="noreferrer">CJ's privacy policy</a>.</li>
         <li><strong>Google OAuth</strong> (admin sign-in only). Used only by Proactivity administrators to sign in to the moderation tools — not by regular users.</li>
       </ul>
       <p>We may also share data when legally required (subpoenas, court orders) or to protect our rights and the safety of our users.</p>

@@ -7,6 +7,7 @@ import { categorize, type CategoryKey } from '@/lib/categories';
 import { findPresetBySeoSlug, LOCATION_PRESETS, type LocationPreset } from '@/lib/locations';
 import { findWindow, WINDOWS, type WindowDef } from '@/lib/seo-windows';
 import { placeholderFor } from '@/lib/icons';
+import { StayNearbyLink } from '../../../StayNearbyLink';
 
 export const dynamic = 'force-dynamic';
 // 30-minute cache hint — landing pages don't need to be fresher than that
@@ -258,6 +259,8 @@ export default async function Page({ params }: { params: Promise<PageParams> }) 
           );
         })}
       </ul>
+
+      <StayNearbyLink city={preset.seoCity} region={preset.seoRegion} />
 
       <section style={{ marginTop: 40 }}>
         <h2 style={{ fontSize: 18, marginBottom: 8 }}>Browse other locations</h2>
