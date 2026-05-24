@@ -63,15 +63,94 @@ recommended path is to let EAS manage them — answer "yes" when asked.
 
 ### Google Play
 
-1. Create the app in Play Console. Set bundle identifier to
-   `com.mswtechno.proactivity` (matches `app.json`'s `android.package`).
-2. Create a Google Cloud service account, grant it the **Service Account
-   User** role on the Play developer account, and download the JSON key.
-   Save it as `apps/mobile/google-service-account.json` (gitignored).
-3. Submit:
-   ```bash
-   eas submit --platform android --profile production
-   ```
+#### Step 1 — Play Console account ($25, identity-verified)
+
+Register at https://play.google.com/console/signup. Pay the $25 one-time
+fee and submit ID. Google verifies in hours-to-days (organization
+accounts can also require a postcard). Nothing else Play-side moves
+until verification clears.
+
+#### Step 2 — Create the app entry
+
+In Play Console: **All apps → Create app**. Set:
+
+- App name: `Proactivity`
+- Default language: English (US)
+- App or game: App
+- Free / paid: Free
+- Declarations: confirm Play policies + US export laws
+
+The package name `com.mswtechno.proactivity` is set when you upload
+the first AAB — Play Console doesn't ask for it during create.
+
+Fill the rest of the listing using `apps/mobile/PLAY_LISTING.md` as
+your copy-paste source (descriptions, Data Safety form, content rating).
+
+#### Step 3 — GCP service account for `eas submit`
+
+EAS uploads AABs to Play Console via the Google Play Android Developer
+API. That API needs a service-account JSON key. This whole step can be
+done in parallel with Step 1's verification — you just can't *use* the
+key until verification clears and the SA is invited into Play Console
+(Step 4).
+
+1. **Create a fresh GCP project** at https://console.cloud.google.com.
+   Click the project picker (top bar) → **New project**.
+   - Name: `proactivity-play-submit`
+   - Organization: leave default (or your org if you have one)
+   - Create.
+
+2. **Enable the Play API** in that project.
+   - With the new project selected, go to
+     https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com
+   - Click **Enable**. (This is the "Google Play Android Developer API".)
+
+3. **Create the service account.**
+   - https://console.cloud.google.com/iam-admin/serviceaccounts → **Create service account**.
+   - Name: `eas-play-submit`
+   - ID (auto-derived): `eas-play-submit`
+   - Description: `Used by EAS Submit to upload AABs to Play Console`
+   - **Skip** the "Grant this service account access to project" step.
+     No GCP IAM role is required — Play Console permissions are
+     granted separately in Step 4. Click **Done**.
+
+4. **Generate a JSON key.**
+   - Click the new service account row → **Keys** tab → **Add key →
+     Create new key → JSON → Create**. A `.json` file downloads.
+   - Move it to `apps/mobile/google-service-account.json` (the
+     `.gitignore` already excludes this filename, so it won't be
+     committed).
+   - Note the service-account email — it looks like
+     `eas-play-submit@proactivity-play-submit.iam.gserviceaccount.com`.
+     You'll paste this in Step 4.
+
+#### Step 4 — Grant the SA access in Play Console (after verification clears)
+
+This is the step that requires Play Console verification to be done.
+
+1. Open https://play.google.com/console → **Users and permissions**
+   → **Invite new users**.
+2. Email: paste the service-account email from Step 3.
+3. **App permissions**: Add Proactivity, then enable at minimum:
+   - Releases → **Manage testing track releases**
+   - Releases → **Manage production releases** (only if you want EAS
+     to push to production directly; for internal-track-only, leave off)
+   - Store presence → **Manage store presence** (optional, lets EAS
+     update listing metadata)
+4. **Account permissions**: none needed.
+5. **Invite user**. The SA accepts automatically — no email confirmation.
+
+Verify access from the command line if you want:
+```bash
+eas credentials --platform android
+```
+
+#### Step 5 — Submit
+
+```bash
+eas build --platform android --profile production    # produces AAB
+eas submit --platform android --profile production   # uploads to internal track
+```
 
 By default this submits to the **internal** testing track (see
 `eas.json` → `submit.production.android.track`). Promote to
