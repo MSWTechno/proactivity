@@ -15,6 +15,7 @@ import {
 } from './lib/auth';
 import { OrganizerScreen } from './screens/Organizer';
 import { AdSlot } from './AdSlot';
+import { StayNearbyLink } from './StayNearbyLink';
 
 const AD_EVERY_N_CARDS = 6;
 import {
@@ -344,6 +345,15 @@ export default function App() {
     setRefreshing(false);
   }, [fetchActivities]);
 
+  // Same placeName-split pattern as the web — "City, REGION" whether
+  // the user picked a preset or we reverse-geocoded their coords.
+  const stayLocation = useMemo(() => {
+    if (!placeName) return null;
+    const parts = placeName.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return null;
+    return { city: parts[0]!, region: parts.length > 1 ? parts[parts.length - 1]! : '' };
+  }, [placeName]);
+
   const groupedSections = useMemo(() => {
     const sections = groupByDay(items ?? []);
     if (noAds) return sections as { title: string; data: (Activity | { __ad: true; key: string })[] }[];
@@ -599,6 +609,14 @@ export default function App() {
           SectionSeparatorComponent={() => <View style={{ height: 6 }} />}
           ListFooterComponent={() => (
             <View>
+              {stayLocation && (
+                <StayNearbyLink
+                  city={stayLocation.city}
+                  region={stayLocation.region}
+                  hidden={noAds}
+                  t={t}
+                />
+              )}
               <Text style={[styles.disclaimer, { color: t.subtle }]}>
                 Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
               </Text>
