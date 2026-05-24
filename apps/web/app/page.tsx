@@ -5,6 +5,7 @@ import { CATEGORIES, type CategoryKey, ALL_CATEGORY_KEYS } from '@/lib/categorie
 import { placeholderFor } from '@/lib/icons';
 import { Logo } from './Logo';
 import { AdSlot } from './AdSlot';
+import { StayNearbyLink } from './StayNearbyLink';
 
 const AD_SLOT_TOP = process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOP;
 const AD_SLOT_INFEED = process.env.NEXT_PUBLIC_ADSENSE_SLOT_INFEED;
@@ -301,6 +302,18 @@ export default function HomePage() {
 
   const grouped = useMemo(() => groupByDay(items ?? []), [items]);
 
+  // Derive city/region for the Vrbo "Stay nearby" affiliate card from the
+  // currently-known place. placeName is "City, REGION" whether the user
+  // picked a preset (LocationPreset.label) or we reverse-geocoded the
+  // browser coords — splitting handles both. If we have no place yet
+  // (geolocation pending or denied with no preset), the card hides itself.
+  const stayLocation = useMemo(() => {
+    if (!placeName) return null;
+    const parts = placeName.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return null;
+    return { city: parts[0]!, region: parts.length > 1 ? parts[parts.length - 1]! : '' };
+  }, [placeName]);
+
   function toggleCategory(key: CategoryKey) {
     setActiveCategories((prev) => {
       const next = new Set(prev);
@@ -497,6 +510,14 @@ export default function HomePage() {
           </section>
         ));
       })()}
+
+      {stayLocation && (
+        <StayNearbyLink
+          city={stayLocation.city}
+          region={stayLocation.region}
+          hidden={noAds}
+        />
+      )}
 
       {ratingTarget && (
         <RatingModal

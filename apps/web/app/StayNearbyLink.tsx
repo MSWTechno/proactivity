@@ -13,41 +13,56 @@
  */
 interface StayNearbyLinkProps {
   city: string;
-  region: string;
+  /** Optional — when blank, the destination omits the region piece. */
+  region?: string;
   hidden?: boolean;
 }
 
 export function StayNearbyLink({ city, region, hidden }: StayNearbyLinkProps) {
-  if (hidden) return null;
+  if (hidden || !city) return null;
 
-  const destination = encodeURIComponent(`${city}, ${region}, United States of America`);
+  const destinationText = [city, region, 'United States of America']
+    .filter(Boolean)
+    .join(', ');
+  const destination = encodeURIComponent(destinationText);
   const href = `https://www.vrbo.com/search?destination=${destination}&sort=RECOMMENDED`;
 
   return (
     <aside
       style={{
-        marginTop: 32,
-        padding: '16px 18px',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        background: 'var(--bg-subtle, #f8f8fb)',
-        fontSize: 14,
+        marginTop: 40,
+        padding: '20px 22px',
+        border: '1px solid var(--accent)',
+        borderRadius: 12,
+        background: 'var(--accent-soft)',
       }}
     >
-      <p style={{ margin: 0, fontWeight: 600 }}>Coming from out of town?</p>
-      <p style={{ margin: '4px 0 10px', color: 'var(--fg-muted)' }}>
-        Find a place to stay near {city} on Vrbo — vacation rentals from cabins to lakefront homes.
+      <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--accent-fg)' }}>
+        <span aria-hidden="true" style={{ marginRight: 8 }}>🏡</span>
+        Coming from out of town?
+      </p>
+      <p style={{ margin: '6px 0 14px', fontSize: 15, color: 'var(--fg)' }}>
+        Find a place to stay near {city} on Vrbo — vacation rentals from cozy cabins
+        to lakefront homes, often cheaper than a hotel for groups.
       </p>
       <a
         href={href}
         target="_blank"
         rel="nofollow sponsored noopener"
-        className="card-tag"
-        style={{ textDecoration: 'none', display: 'inline-block' }}
+        style={{
+          display: 'inline-block',
+          padding: '10px 18px',
+          background: 'var(--accent)',
+          color: 'white',
+          textDecoration: 'none',
+          fontWeight: 600,
+          fontSize: 15,
+          borderRadius: 'var(--radius, 8px)',
+        }}
       >
-        Search Vrbo rentals near {city} →
+        Search Vrbo rentals in {city} →
       </a>
-      <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>
+      <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>
         Affiliate link — we may earn a small commission if you book, at no extra cost to you.
       </p>
     </aside>
