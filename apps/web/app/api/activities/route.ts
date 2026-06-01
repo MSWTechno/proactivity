@@ -236,7 +236,7 @@ export async function GET(request: Request) {
       if (!hit) return false;
     }
     if (search) {
-      const hay = `${item.title} ${item.description ?? ''} ${item.venueName ?? ''}`.toLowerCase();
+      const hay = `${item.title} ${item.description ?? ''} ${item.venueName ?? ''} ${item.organizer?.name ?? ''}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
