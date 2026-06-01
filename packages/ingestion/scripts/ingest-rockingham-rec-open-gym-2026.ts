@@ -22,7 +22,7 @@ const ORGANIZER_NAME = 'Rockingham Recreation Center';
 const PHONE = '(540) 564-3160';
 // Canonical page — required: the homepage feed (/api/activities) drops any
 // activity with a null/empty url (they'd render as dead "#" links).
-const URL = 'https://www.rockinghamcountyva.gov/963/Rockingham-Recreation-Center';
+const URL = 'https://www.facebook.com/rockinghamcountyrecreation';
 
 const VENUE = {
   name: 'Rockingham Recreation Center',
