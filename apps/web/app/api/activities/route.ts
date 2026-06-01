@@ -97,6 +97,17 @@ export async function GET(request: Request) {
       ? sql`AND (a.cost_min_cents IS NULL OR a.cost_min_cents <= ${maxCostCents})`
       : sql``;
 
+  // Search is filtered in SQL (before LIMIT) so it spans the whole result set,
+  // not just the first page. Matches title, description, venue, and organizer
+  // name — the same fields the post-fetch filter used to check. ILIKE on a
+  // concatenation keeps it simple; the row counts here don't warrant FTS.
+  const searchFilter = search
+    ? sql`AND (
+            a.title || ' ' || COALESCE(a.description, '') || ' ' ||
+            COALESCE(a.venue_name, '') || ' ' || COALESCE(a.organizer_name, '')
+          ) ILIKE ${'%' + search + '%'}`
+    : sql``;
+
   // Featured (paying organizer) events bubble to the top regardless of sort.
   // Past mode forces newest-first chronological order — the other sort modes
   // don't really make sense looking backwards.
@@ -166,6 +177,7 @@ export async function GET(request: Request) {
       ${availabilityFilter}
       ${radiusFilter}
       ${costFilter}
+      ${searchFilter}
     ${orderClause}
     LIMIT ${pageSize} OFFSET ${page * pageSize}
   `) as unknown as ActivityRow[];
@@ -234,10 +246,6 @@ export async function GET(request: Request) {
     if (requestedCategories.length > 0) {
       const hit = item.canonicalCategories.some((c) => requestedCategories.includes(c));
       if (!hit) return false;
-    }
-    if (search) {
-      const hay = `${item.title} ${item.description ?? ''} ${item.venueName ?? ''} ${item.organizer?.name ?? ''}`.toLowerCase();
-      if (!hay.includes(search)) return false;
     }
     return true;
   });
