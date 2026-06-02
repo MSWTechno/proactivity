@@ -110,7 +110,7 @@ export default function PrivacyPage() {
       <ul>
         <li>See what data we have about you.</li>
         <li>Correct it.</li>
-        <li>Delete your account and all data tied to it. We'll honor this within 30 days.</li>
+        <li><Link href="/delete-account">Delete your account</Link> and all data tied to it. We'll honor this within 30 days.</li>
         <li>Receive a copy of your data in a portable format.</li>
         <li>Object to specific uses or restrict processing.</li>
       </ul>
