@@ -22,6 +22,7 @@ import {
   AppState,
   Image,
   Linking,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -35,6 +36,7 @@ import {
 } from 'react-native';
 import { ALL_CATEGORY_KEYS, CATEGORIES, type CategoryKey } from './lib/categories';
 import { placeholderFor } from './lib/icons';
+import { LOCATION_PRESETS } from './lib/locations';
 
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity.app';
@@ -85,6 +87,9 @@ export default function App() {
 
   const [geo, setGeo] = useState<GeoState>({ kind: 'idle' });
   const [placeName, setPlaceName] = useState<string | null>(null);
+  const [locPickerOpen, setLocPickerOpen] = useState(false);
+  // null = follow device GPS; otherwise the id of a manually-picked preset.
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [items, setItems] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -254,29 +259,38 @@ export default function App() {
     }
   }, [activeCategories]);
 
+  // Detect the device's GPS location. Clears any manual preset so we follow
+  // the device again. Also used by the location picker's "Use my location".
+  const detectDeviceLocation = useCallback(async () => {
+    setSelectedPresetId(null);
+    setPlaceName(null);
+    setGeo({ kind: 'loading' });
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setGeo({ kind: 'denied' });
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      setGeo({ kind: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch (e) {
+      setGeo({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
+  // Manually browse around a preset location instead of the device's GPS.
+  const selectPreset = useCallback((id: string) => {
+    const p = LOCATION_PRESETS.find((x) => x.id === id);
+    if (!p) return;
+    setSelectedPresetId(id);
+    setPlaceName(p.label);
+    setGeo({ kind: 'ok', lat: p.lat, lng: p.lng });
+  }, []);
+
   // Geolocation on mount.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setGeo({ kind: 'loading' });
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (cancelled) return;
-        if (status !== 'granted') {
-          setGeo({ kind: 'denied' });
-          return;
-        }
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-        if (cancelled) return;
-        setGeo({ kind: 'ok', lat: pos.coords.latitude, lng: pos.coords.longitude });
-      } catch (e) {
-        if (!cancelled) setGeo({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    detectDeviceLocation();
+  }, [detectDeviceLocation]);
 
   // Debounce search.
   useEffect(() => {
@@ -284,9 +298,10 @@ export default function App() {
     return () => clearTimeout(id);
   }, [search]);
 
-  // Reverse-geocode once location is known.
+  // Reverse-geocode once location is known. Skipped when a preset is picked —
+  // the preset's own label is already shown.
   useEffect(() => {
-    if (geo.kind !== 'ok') return;
+    if (geo.kind !== 'ok' || selectedPresetId !== null) return;
     let cancelled = false;
     fetch(`${API_BASE}/api/geocode/reverse?lat=${geo.lat}&lng=${geo.lng}`)
       .then((r) => (r.ok ? r.json() : { name: '' }))
@@ -299,7 +314,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [geo]);
+  }, [geo, selectedPresetId]);
 
   const effectiveSort = sort === 'distance' && geo.kind !== 'ok' ? 'time' : sort;
 
@@ -419,7 +434,7 @@ export default function App() {
             )}
           </View>
         </View>
-        <GeoBar geo={geo} placeName={placeName} t={t} />
+        <GeoBar geo={geo} placeName={placeName} t={t} onPress={() => setLocPickerOpen(true)} />
       </View>
 
       <TextInput
@@ -646,6 +661,16 @@ export default function App() {
         />
       )}
 
+      {locPickerOpen && (
+        <LocationPicker
+          t={t}
+          selectedPresetId={selectedPresetId}
+          onUseDevice={detectDeviceLocation}
+          onSelectPreset={selectPreset}
+          onClose={() => setLocPickerOpen(false)}
+        />
+      )}
+
       {showOnboarding && onboardingChecked && (
         <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
           <View style={styles.wordmarkRow}>
@@ -704,15 +729,81 @@ export default function App() {
   );
 }
 
-function GeoBar({ geo, placeName, t }: { geo: GeoState; placeName: string | null; t: Theme }) {
-  let label = '';
+function GeoBar({
+  geo, placeName, t, onPress,
+}: {
+  geo: GeoState;
+  placeName: string | null;
+  t: Theme;
+  onPress: () => void;
+}) {
+  let label: string;
   if (geo.kind === 'ok') {
     label = `📍 near ${placeName ?? `${geo.lat.toFixed(2)}, ${geo.lng.toFixed(2)}`}`;
-  } else if (geo.kind === 'loading') label = 'Detecting location…';
-  else if (geo.kind === 'denied') label = 'Location declined — showing all events by time';
-  else if (geo.kind === 'error') label = `Location error: ${geo.message}`;
-  if (!label) return null;
-  return <Text style={[styles.geo, { color: t.muted }]}>{label}</Text>;
+  } else if (geo.kind === 'loading') {
+    label = '📍 Detecting location…';
+  } else {
+    // denied / error / idle — invite the user to pick a place instead.
+    label = '📍 Choose a location';
+  }
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={styles.geoRow}>
+      <Text style={[styles.geo, { color: t.muted, flexShrink: 1 }]} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.geo, { color: t.accent }]}>  Change ▾</Text>
+    </Pressable>
+  );
+}
+
+function LocationPicker({
+  t, selectedPresetId, onUseDevice, onSelectPreset, onClose,
+}: {
+  t: Theme;
+  selectedPresetId: string | null;
+  onUseDevice: () => void;
+  onSelectPreset: (id: string) => void;
+  onClose: () => void;
+}) {
+  const Row = ({
+    label, active, onPress,
+  }: {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+  }) => (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.locRow, { borderColor: t.border }, pressed && { opacity: 0.6 }]}
+    >
+      <Text style={[styles.locRowLabel, { color: t.fg }]}>{label}</Text>
+      {active && <Text style={{ color: t.accent, fontSize: 16 }}>✓</Text>}
+    </Pressable>
+  );
+
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
+      <Pressable style={styles.locBackdrop} onPress={onClose}>
+        <Pressable
+          style={[styles.locSheet, { backgroundColor: t.elev, borderColor: t.border }]}
+          onPress={() => {}}
+        >
+          <Text style={[styles.locTitle, { color: t.fg }]}>Location</Text>
+          <Row
+            label="📍 Use my current location"
+            active={selectedPresetId === null}
+            onPress={() => { onUseDevice(); onClose(); }}
+          />
+          {LOCATION_PRESETS.map((p) => (
+            <Row
+              key={p.id}
+              label={p.label}
+              active={selectedPresetId === p.id}
+              onPress={() => { onSelectPreset(p.id); onClose(); }}
+            />
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
 }
 
 function ActivityRow({
@@ -1421,6 +1512,23 @@ const styles = StyleSheet.create({
   wordmark: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
   tagline: { marginTop: 2, fontSize: 13 },
   geo: { marginTop: 8, fontSize: 12 },
+  geoRow: { flexDirection: 'row', alignItems: 'center' },
+  locBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  locSheet: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  locTitle: { fontSize: 16, fontWeight: '700', marginBottom: 10 },
+  locRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  locRowLabel: { fontSize: 15 },
   search: {
     paddingVertical: 10, paddingHorizontal: 14,
     borderRadius: 10, borderWidth: 1, fontSize: 15,
