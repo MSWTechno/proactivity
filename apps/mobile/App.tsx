@@ -780,8 +780,20 @@ function ActivityRow({
       <View style={styles.cardBody}>
         <Text numberOfLines={2} style={[styles.cardTitle, { color: t.fg }]}>{activity.title}</Text>
         <Text style={[styles.cardMeta, { color: t.muted }]} numberOfLines={1}>
-          {whenWithEnd}{place ? ` · ${place}` : ''}{distance ? ` · ${distance}` : ''}
+          {whenWithEnd}
         </Text>
+        {(place || distance) && (
+          <Text style={[styles.cardMeta, { color: t.fg, marginTop: 2 }]} numberOfLines={1}>
+            {place ? `📍 ${place}` : ''}
+            {place && distance ? ' · ' : ''}
+            {distance ?? ''}
+          </Text>
+        )}
+        {activity.organizer?.name && (
+          <Text style={[styles.cardMeta, { color: t.muted, marginTop: 2 }]} numberOfLines={1}>
+            by <Text style={{ color: t.fg, fontWeight: '600' }}>{activity.organizer.name}</Text>
+          </Text>
+        )}
         <View style={styles.cardBottom}>
           <View style={styles.cardBadges}>
             <View style={[styles.badge, { backgroundColor: isAvailable ? t.successSoft : t.dangerSoft }]}>

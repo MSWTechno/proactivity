@@ -3,9 +3,19 @@
 // resolution enabled to follow those when looking up transitive deps.
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
+const fs = require('fs');
 
-const workspaceRoot = path.resolve(__dirname, '../..');
-const projectRoot = __dirname;
+// Normalize to the OS-canonical path casing. On Windows the drive can be
+// referenced as either `D:\workspaces` or `D:\Workspaces`; Node/Expo resolve
+// module paths via fs.realpathSync.native (which returns the canonical casing,
+// e.g. capital "Workspaces"), while metro.config.js's __dirname reflects the
+// casing the shell happened to cd in with. If those differ, Metro's
+// case-sensitive haste map indexes files under one casing but looks them up
+// under the other and throws "Failed to get the SHA-1 for ...". Resolving both
+// roots through realpathSync.native keeps the casing consistent regardless of
+// how the directory was entered.
+const projectRoot = fs.realpathSync.native(__dirname);
+const workspaceRoot = fs.realpathSync.native(path.resolve(projectRoot, '../..'));
 
 const config = getDefaultConfig(projectRoot);
 
