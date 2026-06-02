@@ -24,8 +24,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID_EMAIL",
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
+        "ascApiKeyPath": "./asc-api-key.p8",
+        "ascApiKeyId": "27KQL2ZY7S",
+        "ascApiKeyIssuerId": "b6b6873a-bf46-4f5a-afcc-213fc825b0be"
       },
       "android": {
         "track": "internal",
