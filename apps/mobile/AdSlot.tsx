@@ -59,6 +59,22 @@ export function AdSlot({
           // to add the ATT flow.
           requestNonPersonalizedAdsOnly: true,
         }}
+        // Diagnostic logging — visible in `adb logcat` / device logs even in
+        // release builds. A failed load otherwise renders nothing silently.
+        // The most common error on a freshly-launched app is code "no-fill"
+        // (the request was valid but AdMob had no inventory to serve yet),
+        // which on brand-new accounts/units clears on its own within hours.
+        onAdLoaded={() => {
+          console.log(`[AdSlot] ${kind} ad loaded (unit ${unitId})`);
+        }}
+        onAdFailedToLoad={(error) => {
+          // The runtime error is a RequestError carrying a `code`, but the
+          // SDK types the param as plain Error — read code via a safe cast.
+          const code = (error as { code?: string | number }).code ?? 'unknown';
+          console.warn(
+            `[AdSlot] ${kind} ad failed to load (unit ${unitId}) — code="${code}" message="${error.message}"`,
+          );
+        }}
       />
     </View>
   );

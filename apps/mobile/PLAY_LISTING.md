@@ -112,7 +112,7 @@ Play Console structures this as: declare each data type → for each, answer que
 
 | Data type | Collected | Shared | Optional/Required | Purposes | Linked to user? | Notes |
 |---|---|---|---|---|---|---|
-| **Personal info → Email address** | Yes | No | Required | Account management, App functionality | **Yes** | Sign-in via magic link |
+| **Personal info → Email address** | Yes | No | **Optional** | Account management, App functionality | **Yes** | Sign-in via magic link. Optional because the app is fully usable without an account — sign-in is only needed to rate. |
 | **Personal info → Name** | Yes | No | Optional | Account management, App functionality | **Yes** | Shown publicly on reviews if provided |
 | **Location → Approximate location** | Yes | **Yes** *(with AdMob)* | Optional | App functionality, Advertising | No | Used to sort by distance; AdMob receives IP-derived coarse location |
 | **Location → Precise location** | Yes | No | Optional | App functionality | No | From device GPS when permission granted; only sent to our backend at query time, not stored alongside user |
