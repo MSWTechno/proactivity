@@ -24,6 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: SITE_BASE + '/request-area', lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: SITE_BASE + '/pricing',      lastModified: now, changeFrequency: 'monthly', priority: 0.3 },
     { url: SITE_BASE + '/privacy',      lastModified: now, changeFrequency: 'yearly',  priority: 0.2 },
+    { url: SITE_BASE + '/delete-account', lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
   ];
 
   // SEO landing pages — one per city, plus one per city × time/category

@@ -90,8 +90,11 @@ Answer honestly; result will be **Everyone / PEGI 3 / ESRB E** based on the answ
 
 ## Target audience
 
-- Age groups: **18 and over** (recommended — events listing isn't directed at children; matches the privacy policy)
+- Age groups: **13 and over** — check **13–15, 16–17, and 18+**. This matches the privacy policy, which sets the floor at 13 ("not directed at children under 13"), and a local-events app realistically appeals to teens.
+- **Do NOT select any band under 13** — that triggers Google's Families Policy (COPPA/GDPR-K: certified kid-safe ad SDKs, no advertising ID, separate stricter review). We serve AdMob ads + collect location/email, so staying ≥13 avoids all of it.
+- Including 13–17 requires self-certifying that ads are teen-appropriate — already satisfied since we request non-personalized ads by default.
 - Appeal to children: No
+- (18+ only is also permissible if you specifically don't want teen users, but it's mildly under-inclusive vs. the 13+ privacy policy.)
 
 ---
 
