@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -83,6 +84,7 @@ gtag('config', '${GA_ID}');`}
             complements GA and gives server-aware visibility. Enable it in the
             Vercel project's Analytics tab for data to start flowing. */}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
