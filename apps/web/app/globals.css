@@ -1392,3 +1392,14 @@ main {
   .card-title { font-size: 14px; }
   .card-meta { font-size: 12px; }
 }
+
+/* Infinite-scroll sentinel / "loading more" indicator at the foot of the feed. */
+.load-more-sentinel {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--muted, #71717a);
+  font-size: 13px;
+}

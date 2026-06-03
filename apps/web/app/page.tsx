@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, type CategoryKey, ALL_CATEGORY_KEYS } from '@/lib/categories';
 import { safeTimeZone } from '@/lib/datetime';
 import { placeholderFor } from '@/lib/icons';
@@ -178,6 +178,11 @@ export default function HomePage() {
   const [items, setItems] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Infinite scroll: page is the highest page loaded; hasMore comes from the
+  // API; loadingMore guards against firing overlapping "load next page" fetches.
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Geolocation on mount.
   // Saved location preference. If the user previously picked a preset
@@ -282,16 +287,19 @@ export default function HomePage() {
     return p.toString();
   }, [geo, filters, debouncedSearch, activeCategories]);
 
+  // Initial / filter-change load: reset to page 0 and replace the list.
   useEffect(() => {
     if (geo.kind === 'idle' || geo.kind === 'loading') return;
     setLoading(true);
     setError(null);
+    setPage(0);
     const controller = new AbortController();
-    fetch(`/api/activities?${queryString}`, { signal: controller.signal })
+    fetch(`/api/activities?${queryString}&page=0`, { signal: controller.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = (await r.json()) as { items: Activity[] };
+        const data = (await r.json()) as { items: Activity[]; hasMore?: boolean };
         setItems(data.items);
+        setHasMore(Boolean(data.hasMore));
       })
       .catch((e: unknown) => {
         if (e instanceof Error && e.name === 'AbortError') return;
@@ -300,6 +308,41 @@ export default function HomePage() {
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [queryString, geo.kind]);
+
+  // Infinite scroll: fetch the next page and append. Guarded so overlapping
+  // observer fires don't double-load. Uses the same queryString as page 0.
+  const loadMore = useCallback(() => {
+    if (loading || loadingMore || !hasMore) return;
+    const next = page + 1;
+    setLoadingMore(true);
+    fetch(`/api/activities?${queryString}&page=${next}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as { items: Activity[]; hasMore?: boolean };
+        setItems((prev) => (prev ? [...prev, ...data.items] : data.items));
+        setHasMore(Boolean(data.hasMore));
+        setPage(next);
+      })
+      .catch(() => {
+        /* leave the list as-is; the observer will retry on the next scroll */
+      })
+      .finally(() => setLoadingMore(false));
+  }, [loading, loadingMore, hasMore, page, queryString]);
+
+  // Observe a sentinel near the bottom of the list; load more when it nears view.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: '600px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loadMore]);
 
   const grouped = useMemo(() => groupByDay(items ?? []), [items]);
 
@@ -515,6 +558,13 @@ export default function HomePage() {
           </section>
         ));
       })()}
+
+      {/* Infinite-scroll sentinel: when it scrolls near view, load the next page. */}
+      {items && items.length > 0 && hasMore && (
+        <div ref={sentinelRef} className="load-more-sentinel" aria-hidden="true">
+          {loadingMore ? 'Loading more…' : ''}
+        </div>
+      )}
 
       {stayLocation && (
         <StayNearbyLink

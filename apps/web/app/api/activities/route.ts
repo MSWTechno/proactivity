@@ -276,11 +276,21 @@ export async function GET(request: Request) {
     ? filtered.slice(page * pageSize, page * pageSize + pageSize)
     : filtered;
 
+  // Whether another page exists, for infinite scroll. Category-active: more of
+  // the in-memory filtered set remains. Otherwise: SQL returned a full page of
+  // raw rows (rows.length === pageSize), so there's likely another page —
+  // the JS virtual heuristic may trim `items` below pageSize, so base this on
+  // the raw row count, not on items.length.
+  const hasMore = categoryActive
+    ? (page + 1) * pageSize < filtered.length
+    : rows.length === pageSize;
+
   return NextResponse.json({
     items,
     page,
     pageSize,
     total: filtered.length,
+    hasMore,
   });
 }
 
