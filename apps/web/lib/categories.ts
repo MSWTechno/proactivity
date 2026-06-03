@@ -23,6 +23,7 @@ export const CATEGORIES = {
   festivals: { label: 'Festivals',   emoji: '🎪' },
   wellness:  { label: 'Wellness',    emoji: '🧘' },
   camps:     { label: 'Camps',       emoji: '🏕' },
+  vbs:       { label: 'VBS',         emoji: '⛪' },
   other:     { label: 'Other',       emoji: '✨' },
 } as const;
 
@@ -45,6 +46,7 @@ const RULES: { key: CategoryKey; pattern: RegExp }[] = [
   { key: 'festivals', pattern: /\b(festival|fest\b|carnival|jubilee|celebration|fair\b)\b/i },
   { key: 'wellness',  pattern: /\b(yoga|meditation|mindfulness|wellness|breathwork|tai chi|qigong|sound bath)\b/i },
   { key: 'camps',     pattern: /\b(camps?|day[- ]?camp|summer[- ]?camp|overnight[- ]?camp|sleep[- ]?away|camping)\b/i },
+  { key: 'vbs',       pattern: /\b(vbs|vacation bible school|bible school|bible camp|christian (day[- ]?)?camp)\b/i },
 ];
 
 export interface CategorizeInput {
@@ -71,6 +73,9 @@ export function categorize(input: CategorizeInput): CategoryKey[] {
   for (const { key, pattern } of RULES) {
     if (pattern.test(haystack)) found.add(key);
   }
+  // VBS (Vacation Bible School / Christian day camp) is a specialization of
+  // camps — anything tagged VBS also surfaces under the broader camps filter.
+  if (found.has('vbs')) found.add('camps');
   if (found.size === 0) found.add('other');
   return [...found];
 }
