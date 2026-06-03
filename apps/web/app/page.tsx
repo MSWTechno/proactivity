@@ -1018,13 +1018,15 @@ function ActivityCard({
     onViewReviews();
   };
   const [imgFailed, setImgFailed] = useState(false);
+  // Show times in the event's own timezone, not the viewer's device tz.
+  const tz = a.timezone ?? 'America/New_York';
   const start = new Date(a.startAt);
-  const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz });
   // Append the end time when the event ends the same day. Multi-day events
   // would read weirdly as a single bare time so we skip them.
   const end = a.endAt ? new Date(a.endAt) : null;
   const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
-  const endStr = sameDayEnd ? end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : null;
+  const endStr = sameDayEnd ? end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }) : null;
   const timeRange = endStr ? `${timeStr} – ${endStr}` : timeStr;
   const place = [a.venueName, a.city].filter(Boolean).join(' · ');
   const distance = a.distanceMeters != null
