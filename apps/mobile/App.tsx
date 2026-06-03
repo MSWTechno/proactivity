@@ -97,7 +97,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
-  const [daysAhead, setDaysAhead] = useState(7);
+  const [daysAhead, setDaysAhead] = useState(14);
   const [sort, setSort] = useState<'time' | 'distance' | 'cost'>('time');
   // Radius captured in miles for the UI; converted to km when calling
   // the API (server-side filtering stays metric).
@@ -384,6 +384,10 @@ export default function App() {
         next.delete(key);
       } else {
         next.add(key);
+        // Camps & VBS are scheduled weeks/months out (summer), so the default
+        // 7-day window would hide them — switch to "all upcoming" (daysAhead=0)
+        // when either is selected.
+        if (key === 'vbs' || key === 'camps') setDaysAhead(0);
         // Fire-and-forget: server aggregates clicks for sort ordering.
         fetch(`${API_BASE}/api/categories/click`, {
           method: 'POST',

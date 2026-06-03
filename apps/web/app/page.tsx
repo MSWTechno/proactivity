@@ -67,7 +67,7 @@ export default function HomePage() {
     // Radius is captured in miles for the UI; converted to km when calling
     // the API (the server still works in kilometers/meters internally).
     radiusMi: 15,
-    dateRange: '7' as '1' | '2' | '7' | '14' | '30' | 'all' | 'past',
+    dateRange: '14' as '1' | '2' | '7' | '14' | '30' | 'all' | 'past',
     sort: 'time' as 'distance' | 'time' | 'cost',
     freeOnly: false,
     includeUnavailable: false,
@@ -321,6 +321,10 @@ export default function HomePage() {
         next.delete(key);
       } else {
         next.add(key);
+        // Camps & VBS are scheduled weeks/months out (summer), so the default
+        // 7-day window would hide them — switch to "all upcoming" when either
+        // is selected.
+        if (key === 'vbs' || key === 'camps') setFilters((f) => ({ ...f, dateRange: 'all' }));
         // Fire-and-forget — server aggregates clicks for sort ordering.
         fetch('/api/categories/click', {
           method: 'POST',
