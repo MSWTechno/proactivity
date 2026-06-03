@@ -1,10 +1,12 @@
+import { CjAffiliateScripts } from './CjAffiliateScripts';
+
 /**
  * "Stay nearby" affiliate card rendered on city landing pages.
  *
- * The href is a plain Vrbo search URL; the sitewide CJ Deep Link
- * Automation script (loaded from layout.tsx when NEXT_PUBLIC_CJ_PUBLISHER_ID
- * is set) rewrites it to a CJ tracking URL at click time. So we don't
- * hand-stitch tracking params here — the script handles attribution.
+ * The href is a plain Vrbo search URL; the CJ Deep Link Automation script
+ * (rendered here via <CjAffiliateScripts>, scoped to where affiliate links
+ * actually appear) rewrites it to a CJ tracking URL at click time. So we
+ * don't hand-stitch tracking params here — the script handles attribution.
  *
  * Hidden when:
  *  - `hidden` prop is true (caller passes true for Plus subscribers).
@@ -65,6 +67,8 @@ export function StayNearbyLink({ city, region, hidden }: StayNearbyLinkProps) {
       <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>
         Affiliate link — we may earn a small commission if you book, at no extra cost to you.
       </p>
+      {/* CJ scripts load only here, where the affiliate link actually is. */}
+      <CjAffiliateScripts />
     </aside>
   );
 }
