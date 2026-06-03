@@ -110,6 +110,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Infinite scroll: page = highest page loaded; hasMore from the API.
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategories, setActiveCategories] = useState<Set<CategoryKey>>(new Set());
@@ -353,15 +357,36 @@ export default function App() {
 
   const fetchActivities = useCallback(async () => {
     setError(null);
+    setPage(0);
     try {
-      const res = await fetch(`${API_BASE}/api/activities?${queryString}`);
+      const res = await fetch(`${API_BASE}/api/activities?${queryString}&page=0`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { items: Activity[] };
+      const data = (await res.json()) as { items: Activity[]; hasMore?: boolean };
       setItems(data.items);
+      setHasMore(Boolean(data.hasMore));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [queryString]);
+
+  // Infinite scroll: fetch + append the next page when the list nears its end.
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || refreshing || !hasMore) return;
+    const next = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/activities?${queryString}&page=${next}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { items: Activity[]; hasMore?: boolean };
+      setItems((prev) => (prev ? [...prev, ...data.items] : data.items));
+      setHasMore(Boolean(data.hasMore));
+      setPage(next);
+    } catch {
+      /* leave the list as-is; retry on the next end-reached */
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [queryString, page, hasMore, loading, loadingMore, refreshing]);
 
   useEffect(() => {
     if (geo.kind === 'idle' || geo.kind === 'loading') return;
@@ -632,8 +657,15 @@ export default function App() {
           contentContainerStyle={{ paddingBottom: 60 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           SectionSeparatorComponent={() => <View style={{ height: 6 }} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.6}
           ListFooterComponent={() => (
             <View>
+              {loadingMore && (
+                <Text style={{ color: t.muted, fontSize: 12, textAlign: 'center', paddingVertical: 12 }}>
+                  Loading more…
+                </Text>
+              )}
               <Text style={[styles.disclaimer, { color: t.subtle }]}>
                 Events listed here are organized and run by third parties. Proactivity aggregates publicly available listings but is not responsible for event content, accuracy, conduct, or anything that happens at or as a result of attending. Verify details with the event organizer and use your own judgment.
               </Text>
