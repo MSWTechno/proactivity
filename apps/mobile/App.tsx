@@ -50,6 +50,7 @@ interface Activity {
   description: string | null;
   startAt: string;
   endAt: string | null;
+  timezone: string | null;
   venueName: string | null;
   city: string | null;
   lat: number | null;
@@ -819,6 +820,8 @@ function ActivityRow({
   onPress: () => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  // Show times in the event's own timezone, not the viewer's device tz.
+  const tz = activity.timezone ?? 'America/New_York';
   const start = new Date(activity.startAt);
   const when = start.toLocaleString(undefined, {
     weekday: 'short',
@@ -826,13 +829,14 @@ function ActivityRow({
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: tz,
   });
   // Append end time when same-day so open-gym style slots read e.g.
   // "Thu, May 21, 8:00 AM – 8:00 PM" instead of just the start.
   const end = activity.endAt ? new Date(activity.endAt) : null;
   const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
   const whenWithEnd = sameDayEnd
-    ? `${when} – ${end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    ? `${when} – ${end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz })}`
     : when;
   const place = [activity.venueName, activity.city].filter(Boolean).join(' · ');
   const distance = activity.distanceMeters != null
@@ -1108,17 +1112,19 @@ function EventDetailOverlay({
   onRate: () => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  // Show times in the event's own timezone, not the viewer's device tz.
+  const tz = activity.timezone ?? 'America/New_York';
   const start = new Date(activity.startAt);
   const end = activity.endAt ? new Date(activity.endAt) : null;
   const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
   const dateLabel = start.toLocaleString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
+    hour: 'numeric', minute: '2-digit', timeZone: tz,
   });
   const endLabel = end && !isNaN(end.getTime())
     ? (sameDayEnd
-        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-        : end.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))
+        ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz })
+        : end.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz }))
     : null;
   const place = [activity.venueName, activity.city].filter(Boolean).join(' · ');
   const price = formatPrice(activity.costMinCents, activity.costMaxCents, activity.currency);
