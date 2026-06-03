@@ -108,6 +108,12 @@ export async function GET(request: Request) {
           ) ILIKE ${'%' + search + '%'}`
     : sql``;
 
+  // Filter out virtual events in SQL (before LIMIT) via the stored flag, so a
+  // page isn't under-filled when virtual events sort into it. The isVirtualEvent
+  // text heuristic in the post-fetch step is a light supplement for rows whose
+  // flag is null/missed. `IS NOT TRUE` keeps NULL (unknown) rows visible.
+  const virtualFilter = includeVirtual ? sql`` : sql`AND a.is_virtual IS NOT TRUE`;
+
   // Featured (paying organizer) events bubble to the top regardless of sort.
   // Past mode forces newest-first chronological order — the other sort modes
   // don't really make sense looking backwards.
@@ -191,6 +197,7 @@ export async function GET(request: Request) {
       ${radiusFilter}
       ${costFilter}
       ${searchFilter}
+      ${virtualFilter}
     ${orderClause}
     LIMIT ${sqlLimit} OFFSET ${sqlOffset}
   `) as unknown as ActivityRow[];
