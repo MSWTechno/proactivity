@@ -57,8 +57,6 @@ type GeoState =
 import { LOCATION_PRESETS, type LocationPresetId as PresetId } from '@/lib/locations';
 type LocationChoice = { kind: 'browser' } | { kind: 'preset'; id: PresetId };
 
-const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';
-const STORAGE_INTERESTS = 'proactivity:interests:v1';
 const STORAGE_LOCATION = 'proactivity:location:v1';
 
 export default function HomePage() {
@@ -79,7 +77,6 @@ export default function HomePage() {
   // Site-wide popularity order, fetched once and frozen for the session so
   // chips don't shuffle as you click.
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
   // Single modal shows both event reviews and (if any) organizer reviews.
   // Click on either star on a card opens this same modal for that activity.
@@ -144,37 +141,6 @@ export default function HomePage() {
       });
   }, []);
 
-  // Onboarding check + pre-fill saved interests.
-  useEffect(() => {
-    try {
-      const onboarded = localStorage.getItem(STORAGE_ONBOARDED);
-      const interestsRaw = localStorage.getItem(STORAGE_INTERESTS);
-      if (onboarded === '1') {
-        if (interestsRaw) {
-          const arr = JSON.parse(interestsRaw) as CategoryKey[];
-          if (Array.isArray(arr) && arr.length > 0) {
-            setActiveCategories(new Set(arr.filter((k) => (ALL_CATEGORY_KEYS as readonly string[]).includes(k))));
-          }
-        }
-      } else {
-        setShowOnboarding(true);
-      }
-    } catch {
-      /* localStorage unavailable */
-    }
-  }, []);
-
-  const completeOnboarding = (skip: boolean) => {
-    setShowOnboarding(false);
-    try {
-      localStorage.setItem(STORAGE_ONBOARDED, '1');
-      if (!skip) {
-        localStorage.setItem(STORAGE_INTERESTS, JSON.stringify([...activeCategories]));
-      }
-    } catch {
-      /* ignore */
-    }
-  };
   const [items, setItems] = useState<Activity[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -622,51 +588,6 @@ export default function HomePage() {
         </a>
       </p>
 
-      {showOnboarding && (
-        <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-          <div className="onboarding-card">
-            <h1 className="wordmark" style={{ marginBottom: 8 }}>
-              <Logo size={26} className="wordmark-logo" />proactivity
-            </h1>
-            <h2 id="onboarding-title" className="onboarding-title">What interests you?</h2>
-            <p className="onboarding-sub">
-              Pick a few — we'll show you events you'll love first. You can change this later.
-            </p>
-            <div className="onboarding-chips">
-              {orderedCategories.map((key) => {
-                const c = CATEGORIES[key];
-                const active = activeCategories.has(key);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`chip ${active ? 'chip-active' : ''}`}
-                    onClick={() => toggleCategory(key)}
-                    aria-pressed={active}
-                  >
-                    <span aria-hidden="true">{c.emoji}</span> {c.label}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={activeCategories.size === 0}
-              onClick={() => completeOnboarding(false)}
-            >
-              {activeCategories.size > 0 ? `Continue (${activeCategories.size} selected)` : 'Pick at least one'}
-            </button>
-            <button
-              type="button"
-              className="onboarding-skip"
-              onClick={() => completeOnboarding(true)}
-            >
-              Skip for now
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

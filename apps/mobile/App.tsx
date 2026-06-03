@@ -3,7 +3,6 @@ import * as Location from 'expo-location';
 import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Constants from 'expo-constants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   authFetch,
   clearSession,
@@ -41,8 +40,6 @@ import { LOCATION_PRESETS } from './lib/locations';
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity.app';
 
-const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';
-const STORAGE_INTERESTS = 'proactivity:interests:v1';
 
 /**
  * Returns a timezone safe to pass to toLocaleString({ timeZone }). Scraped
@@ -125,8 +122,6 @@ export default function App() {
   const [freeOnly, setFreeOnly] = useState(false);
   const [includeUnavailable, setIncludeUnavailable] = useState(false);
   const [orderedCategories, setOrderedCategories] = useState<CategoryKey[]>([...ALL_CATEGORY_KEYS]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<Activity | null>(null);
   const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
@@ -240,44 +235,6 @@ export default function App() {
         /* keep default order */
       });
   }, []);
-
-  // Onboarding check + pre-fill saved interests.
-  useEffect(() => {
-    (async () => {
-      try {
-        const [onboarded, interests] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_ONBOARDED),
-          AsyncStorage.getItem(STORAGE_INTERESTS),
-        ]);
-        if (onboarded === '1') {
-          if (interests) {
-            const arr = JSON.parse(interests) as CategoryKey[];
-            if (Array.isArray(arr) && arr.length > 0) {
-              setActiveCategories(new Set(arr.filter((k) => ALL_CATEGORY_KEYS.includes(k))));
-            }
-          }
-        } else {
-          setShowOnboarding(true);
-        }
-      } catch {
-        /* storage unavailable — proceed without onboarding */
-      } finally {
-        setOnboardingChecked(true);
-      }
-    })();
-  }, []);
-
-  const completeOnboarding = useCallback(async (skip = false) => {
-    setShowOnboarding(false);
-    try {
-      await AsyncStorage.setItem(STORAGE_ONBOARDED, '1');
-      if (!skip) {
-        await AsyncStorage.setItem(STORAGE_INTERESTS, JSON.stringify([...activeCategories]));
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [activeCategories]);
 
   // Detect the device's GPS location. Clears any manual preset so we follow
   // the device again. Also used by the location picker's "Use my location".
@@ -723,60 +680,6 @@ export default function App() {
         />
       )}
 
-      {showOnboarding && onboardingChecked && (
-        <View style={[styles.onboardOverlay, { backgroundColor: t.bg }]}>
-          <View style={styles.wordmarkRow}>
-            <Logo size={22} color={t.accent} />
-            <Text style={[styles.wordmark, { color: t.fg }]}>proactivity</Text>
-          </View>
-          <Text style={[styles.onboardTitle, { color: t.fg }]}>What interests you?</Text>
-          <Text style={[styles.onboardSubtitle, { color: t.muted }]}>
-            Pick a few — we'll show you events you'll love first. You can change this later.
-          </Text>
-          <ScrollView
-            contentContainerStyle={styles.onboardChips}
-            showsVerticalScrollIndicator={false}
-          >
-            {orderedCategories.map((key) => {
-              const c = CATEGORIES[key];
-              const active = activeCategories.has(key);
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => toggleCategory(key)}
-                  style={[
-                    styles.onboardChip,
-                    { borderColor: t.border, backgroundColor: t.elev },
-                    active && { backgroundColor: t.accent, borderColor: t.accent },
-                  ]}
-                >
-                  <Text style={[
-                    styles.onboardChipText,
-                    { color: t.fg },
-                    active && { color: '#fff' },
-                  ]}>
-                    {c.emoji}  {c.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          <Pressable
-            onPress={() => completeOnboarding(false)}
-            style={[styles.onboardPrimary, { backgroundColor: t.accent, opacity: activeCategories.size > 0 ? 1 : 0.55 }]}
-            disabled={activeCategories.size === 0}
-          >
-            <Text style={styles.onboardPrimaryText}>
-              {activeCategories.size > 0
-                ? `Continue (${activeCategories.size} selected)`
-                : 'Pick at least one'}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => completeOnboarding(true)} style={styles.onboardSkip}>
-            <Text style={[styles.onboardSkipText, { color: t.muted }]}>Skip for now</Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 }
