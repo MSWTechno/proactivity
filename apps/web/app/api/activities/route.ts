@@ -119,6 +119,19 @@ export async function GET(request: Request) {
         ? sql`ORDER BY is_featured DESC, a.cost_min_cents ASC NULLS LAST`
         : sql`ORDER BY is_featured DESC, a.start_at ASC`;
 
+  // Category is a *derived* field (computed by categorize() at response time
+  // from raw categories + title/description), so it can't be filtered in SQL
+  // before the LIMIT the way search is. If we paginate in SQL first and filter
+  // by category after, a rare category (e.g. a handful of VBS events sorted far
+  // down) never appears on page 1 and the filter returns nothing. So when a
+  // category is requested, fetch the whole candidate set (capped) and do the
+  // category filter + pagination in JS below. Same recall fix the search filter
+  // got, adapted for a derived field.
+  const categoryActive = requestedCategories.length > 0;
+  const CATEGORY_FETCH_CAP = 2000;
+  const sqlLimit = categoryActive ? CATEGORY_FETCH_CAP : pageSize;
+  const sqlOffset = categoryActive ? 0 : page * pageSize;
+
   const rows = (await sql`
     SELECT
       a.id, a.title, a.description, a.start_at, a.end_at, a.timezone,
@@ -179,7 +192,7 @@ export async function GET(request: Request) {
       ${costFilter}
       ${searchFilter}
     ${orderClause}
-    LIMIT ${pageSize} OFFSET ${page * pageSize}
+    LIMIT ${sqlLimit} OFFSET ${sqlOffset}
   `) as unknown as ActivityRow[];
 
   // Derive canonical categories per row, then filter by search + category.
@@ -250,8 +263,14 @@ export async function GET(request: Request) {
     return true;
   });
 
+  // When category-filtering we fetched the whole candidate set, so paginate
+  // the filtered result here. Otherwise SQL already applied LIMIT/OFFSET.
+  const items = categoryActive
+    ? filtered.slice(page * pageSize, page * pageSize + pageSize)
+    : filtered;
+
   return NextResponse.json({
-    items: filtered,
+    items,
     page,
     pageSize,
     total: filtered.length,
