@@ -44,6 +44,21 @@ const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undef
 const STORAGE_ONBOARDED = 'proactivity:onboarded:v1';
 const STORAGE_INTERESTS = 'proactivity:interests:v1';
 
+/**
+ * Returns a timezone safe to pass to toLocaleString({ timeZone }). Scraped
+ * events store junk like "-5:00" or "Z" that throw a RangeError and would
+ * crash the render; validate once and fall back to the app's home zone.
+ */
+function safeTimeZone(tz: string | null | undefined): string {
+  const candidate = tz && tz.trim() ? tz.trim() : 'America/New_York';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: candidate });
+    return candidate;
+  } catch {
+    return 'America/New_York';
+  }
+}
+
 interface Activity {
   id: string;
   title: string;
@@ -821,7 +836,7 @@ function ActivityRow({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   // Show times in the event's own timezone, not the viewer's device tz.
-  const tz = activity.timezone ?? 'America/New_York';
+  const tz = safeTimeZone(activity.timezone);
   const start = new Date(activity.startAt);
   const when = start.toLocaleString(undefined, {
     weekday: 'short',
@@ -1113,7 +1128,7 @@ function EventDetailOverlay({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   // Show times in the event's own timezone, not the viewer's device tz.
-  const tz = activity.timezone ?? 'America/New_York';
+  const tz = safeTimeZone(activity.timezone);
   const start = new Date(activity.startAt);
   const end = activity.endAt ? new Date(activity.endAt) : null;
   const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();

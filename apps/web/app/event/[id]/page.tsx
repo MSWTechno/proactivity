@@ -6,6 +6,7 @@ import { Logo } from '../../Logo';
 import { categorize, CATEGORIES, type CategoryKey } from '@/lib/categories';
 import { inferAgeRange } from '@/lib/age';
 import { placeholderFor } from '@/lib/icons';
+import { safeTimeZone } from '@/lib/datetime';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,7 +118,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
     // Format in the event's own timezone, not the server's (Vercel = UTC).
-    timeZone: e.timezone ?? 'America/New_York',
+    timeZone: safeTimeZone(e.timezone),
   });
   const place = [e.venueName, e.city, e.region].filter(Boolean).join(', ');
   const title = `${e.title} · ${dateStr}${place ? ' · ' + place : ''}`;
@@ -169,7 +170,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const start = new Date(e.startAt);
   const end = e.endAt ? new Date(e.endAt) : null;
-  const tz = e.timezone ?? 'America/New_York';
+  const tz = safeTimeZone(e.timezone);
   const dateLabel = start.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
