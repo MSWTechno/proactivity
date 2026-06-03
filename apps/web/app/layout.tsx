@@ -7,9 +7,9 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
-// CJ affiliate scripts now load only on pages with affiliate links — see
-// CjAffiliateScripts (rendered by StayNearbyLink) — not site-wide, to keep
-// the CJ redirect-domain off pages that don't need it (reputation hygiene).
+// No CJ affiliate JavaScript site-wide (or anywhere): the affiliate tracking
+// URL is now built server-side as a static CJ deep link in StayNearbyLink, so
+// there's no client-side redirector script that URL-reputation engines flag.
 
 export const metadata: Metadata = {
   title: 'Proactivity',
