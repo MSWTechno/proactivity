@@ -116,6 +116,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const dateStr = new Date(e.startAt).toLocaleString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    // Format in the event's own timezone, not the server's (Vercel = UTC).
+    timeZone: e.timezone ?? 'America/New_York',
   });
   const place = [e.venueName, e.city, e.region].filter(Boolean).join(', ');
   const title = `${e.title} · ${dateStr}${place ? ' · ' + place : ''}`;
@@ -167,9 +169,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const start = new Date(e.startAt);
   const end = e.endAt ? new Date(e.endAt) : null;
+  const tz = e.timezone ?? 'America/New_York';
   const dateLabel = start.toLocaleString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    // Format in the event's own timezone, not the server's (Vercel = UTC).
+    timeZone: tz,
   });
   const place = [e.venueName, e.address, e.city, e.region].filter(Boolean).join(', ');
   // Coords beat free-text for Google Maps directions because the address
@@ -301,7 +306,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         )}
 
         <div className="event-detail-meta">
-          <div><strong>When</strong><br />{dateLabel}{end ? <> &nbsp;→&nbsp; {end.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</> : null}</div>
+          <div><strong>When</strong><br />{dateLabel}{end ? <> &nbsp;→&nbsp; {end.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz })}</> : null}</div>
           {place && (
             <div>
               <strong>Where</strong><br />
