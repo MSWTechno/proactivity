@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { CATEGORIES, type CategoryKey, ALL_CATEGORY_KEYS } from '@/lib/categories';
+import { safeTimeZone } from '@/lib/datetime';
 import { placeholderFor } from '@/lib/icons';
 import { Logo } from './Logo';
 import { AdSlot } from './AdSlot';
@@ -1019,7 +1020,9 @@ function ActivityCard({
   };
   const [imgFailed, setImgFailed] = useState(false);
   // Show times in the event's own timezone, not the viewer's device tz.
-  const tz = a.timezone ?? 'America/New_York';
+  // safeTimeZone guards against invalid stored zones (e.g. "-5:00", "Z") that
+  // would otherwise throw a RangeError and crash the whole page.
+  const tz = safeTimeZone(a.timezone);
   const start = new Date(a.startAt);
   const timeStr = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz });
   // Append the end time when the event ends the same day. Multi-day events
