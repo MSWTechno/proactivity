@@ -41,6 +41,16 @@ import { logEvent, logScreenView } from './lib/analytics';
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity.app';
 
+// Sub-filters shown when "Camps" is selected — each AND-combines with camps
+// server-side (camps + sports = sports camps). Keep in sync with web page.tsx.
+const CAMP_FACETS: [CategoryKey, string][] = [
+  ['sports', 'Sports'],
+  ['arts', 'Arts'],
+  ['education', 'STEM / Learning'],
+  ['outdoor', 'Outdoor'],
+  ['vbs', 'VBS'],
+];
+
 
 /**
  * Returns a timezone safe to pass to toLocaleString({ timeZone }). Scraped
@@ -587,6 +597,37 @@ export default function App() {
           );
         })}
       </ScrollView>
+
+      {/* Camp-type sub-filter — shown when Camps is selected. Each facet
+          AND-combines with camps server-side (camps + sports = sports camps). */}
+      {activeCategories.has('camps') && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.catScroll}
+          contentContainerStyle={styles.catRow}
+        >
+          <Text style={[styles.campFacetLabel, { color: t.muted }]}>Camp type:</Text>
+          {CAMP_FACETS.map(([key, label]) => {
+            const active = activeCategories.has(key);
+            return (
+              <Pressable
+                key={key}
+                onPress={() => toggleCategory(key)}
+                style={[
+                  styles.chip,
+                  { borderColor: t.border, backgroundColor: t.elev },
+                  active && { backgroundColor: t.accent, borderColor: t.accent },
+                ]}
+              >
+                <Text style={[styles.chipText, { color: t.fg }, active && { color: '#fff' }]}>
+                  {CATEGORIES[key].emoji} {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {error && (
         <View style={[styles.errorBox, { backgroundColor: t.dangerSoft }]}>
@@ -1517,6 +1558,7 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, marginRight: 6 },
   chipText: { fontSize: 13 },
+  campFacetLabel: { fontSize: 12, fontWeight: '600', alignSelf: 'center', marginRight: 4 },
   card: { flexDirection: 'row', borderRadius: 14, borderWidth: 1, padding: 10, gap: 10 },
   cardImg: { width: 72, height: 72, borderRadius: 10 },
   cardImgPlaceholder: { alignItems: 'center', justifyContent: 'center' },

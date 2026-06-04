@@ -267,7 +267,16 @@ export async function GET(request: Request) {
   const filtered = mapped.filter((item) => {
     if (!includeVirtual && (item.isVirtual || isVirtualEvent(item))) return false;
     if (requestedCategories.length > 0) {
-      const hit = item.canonicalCategories.some((c) => requestedCategories.includes(c));
+      // Default is OR (match any selected category). But when "camps" is one of
+      // the selections, switch to AND so a second chip narrows *within* camps
+      // (e.g. camps + sports = sports camps), which is what users expect when
+      // drilling into a camp type. With a single category selected both modes
+      // are equivalent.
+      const andMode =
+        requestedCategories.includes('camps') && requestedCategories.length > 1;
+      const hit = andMode
+        ? requestedCategories.every((c) => item.canonicalCategories.includes(c))
+        : item.canonicalCategories.some((c) => requestedCategories.includes(c));
       if (!hit) return false;
     }
     return true;
