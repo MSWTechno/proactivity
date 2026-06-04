@@ -12,8 +12,25 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 // there's no client-side redirector script that URL-reputation engines flag.
 
 export const metadata: Metadata = {
+  // Resolves relative URLs (incl. the og:image from opengraph-image.tsx) to
+  // absolute ones so Facebook/iMessage/Slack can fetch them.
+  metadataBase: new URL('https://proactivity.app'),
   title: 'Proactivity',
   description: 'Things to do near you in the next week.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Proactivity',
+    title: 'Proactivity',
+    description: 'Things to do near you in the next week.',
+    url: 'https://proactivity.app',
+    locale: 'en_US',
+    // og:image is supplied automatically by app/opengraph-image.tsx.
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Proactivity',
+    description: 'Things to do near you in the next week.',
+  },
   // AdSense site verification + ownership signal — must be in <head>.
   ...(ADSENSE_CLIENT
     ? { other: { 'google-adsense-account': ADSENSE_CLIENT } }
