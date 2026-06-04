@@ -59,6 +59,8 @@
       "adMobBannerUnitIdIos": "ca-app-pub-8679774689772691/4920694343",
       "adMobInFeedUnitIdAndroid": "ca-app-pub-8679774689772691/6066255053",
       "adMobInFeedUnitIdIos": "ca-app-pub-8679774689772691/5140563498",
+      "gaMeasurementId": "G-D8GLN7KEDF",
+      "gaApiSecret": "9Sw1mqGyTy6mSx50zXknuQ",
       "eas": {
         "projectId": "e52b81d3-d059-4f0d-83c4-f9d4abab51de"
       }
