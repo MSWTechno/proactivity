@@ -38,6 +38,7 @@ Scripts upsert on (sourceId, sourceEventId), so re-running is safe.
 | JMU "Loren LaPorte" Softball Camps (Jr. Dukes All-Skills + Prospect, 5 days) | Softball camps | Jun 23, Jun 24, Jul 14, Jul 15, Aug 23 | 2026 flyer + lorenlaportecamps.com / Ryzer (prices are 2025 rate — re-verify) | `ingest-jmu-softball-camps-2026.ts` |
 | Ryzer sports-camp sweep (JMU, EMU, Bridgewater College, independents — ~26 camps within 50 mi of 22801) | College/sports camps | rolling (summer) | **live** Ryzer `event/eventSearch` API (re-run anytime to refresh; skips JMU softball dupes) | `ingest-ryzer-harrisonburg-camps.ts` |
 | Explore More Discovery Museum — "Summer Spark" weekly drop-ins (Tinker Time, Making Masterpieces, Science Explorers, Preschool Paint n' Play) | Free museum programs | weekly, Jun 2–~Aug 31 (end approximate) | iexploremore.com/weeklysummer2026 (verify end date + that it recurs) | `ingest-explore-more-summer-spark-2026.ts` |
+| Camp Horizons — overnight outdoor camp (Base, Equestrian, Leadership, Adventure; 15 sessions) | Outdoor overnight camps | Jun 14–Aug 15 | camphorizons.com/dates-rates | `ingest-camp-horizons-2026.ts` |
 
 ### VBS / Christian kids camps (summer, annual)
 | Church | 2026 dates | Source | Script |
