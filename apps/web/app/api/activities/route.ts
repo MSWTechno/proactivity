@@ -268,15 +268,21 @@ export async function GET(request: Request) {
     if (!includeVirtual && (item.isVirtual || isVirtualEvent(item))) return false;
     if (requestedCategories.length > 0) {
       // Default is OR (match any selected category). But when "camps" is one of
-      // the selections, switch to AND so a second chip narrows *within* camps
-      // (e.g. camps + sports = sports camps), which is what users expect when
-      // drilling into a camp type. With a single category selected both modes
-      // are equivalent.
-      const andMode =
+      // the selections, narrow *within* camps: the event must be a camp AND
+      // match the selected camp-type facets. Multiple facets OR together, so
+      // camps + sports + arts = sports OR arts camps (not sports AND arts,
+      // which nothing would satisfy). A single facet behaves the same.
+      const campScoped =
         requestedCategories.includes('camps') && requestedCategories.length > 1;
-      const hit = andMode
-        ? requestedCategories.every((c) => item.canonicalCategories.includes(c))
-        : item.canonicalCategories.some((c) => requestedCategories.includes(c));
+      let hit: boolean;
+      if (campScoped) {
+        const facets = requestedCategories.filter((c) => c !== 'camps');
+        hit =
+          item.canonicalCategories.includes('camps') &&
+          facets.some((c) => item.canonicalCategories.includes(c));
+      } else {
+        hit = item.canonicalCategories.some((c) => requestedCategories.includes(c));
+      }
       if (!hit) return false;
     }
     return true;
