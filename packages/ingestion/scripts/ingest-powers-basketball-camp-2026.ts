@@ -19,7 +19,9 @@ import { eq } from 'drizzle-orm';
 
 const ORGANIZER_NAME = 'Coach Powers Camps';
 const ORGANIZER_KEY = 'powers-basketball-camp-2026-import';
-const URL = 'https://www.powersbballcamp.com';
+// powersbballcamp.com (apex + www) has an invalid TLS cert, so link to the
+// actual content page (the Google Site it redirects to), which has a valid cert.
+const URL = 'https://sites.google.com/powersbballcamp.com/justin-powers-basketball-camp/home';
 
 const VENUE = {
   name: 'Eastern Mennonite University',
@@ -38,6 +40,10 @@ interface CampEvent {
   startAt: string;
   endAt: string;
   dateText: string;
+  overnightCents: number; // total overnight/residential price
+  depositText: string;
+  extendedCents: number; // Extended Day commuter (8am–9pm)
+  dayCents: number; // Day Camper commuter (8am–5pm)
 }
 
 const EVENTS: CampEvent[] = [
@@ -46,25 +52,35 @@ const EVENTS: CampEvent[] = [
     who: 'girls',
     startAt: `2026-07-13T09:00:00${EDT}`,
     endAt: `2026-07-15T17:00:00${EDT}`,
-    dateText: 'July 13–15, 2026',
+    dateText: 'July 13–15, 2026 (3 days / 2 nights)',
+    overnightCents: 46500,
+    depositText: '$275 deposit, balance due June 15',
+    extendedCents: 31000,
+    dayCents: 21000,
   },
   {
     title: 'Coach Powers Boys Overnight Basketball Camp',
     who: 'boys',
     startAt: `2026-07-20T09:00:00${EDT}`,
     endAt: `2026-07-23T17:00:00${EDT}`,
-    dateText: 'July 20–23, 2026',
+    dateText: 'July 20–23, 2026 (4 days / 3 nights)',
+    overnightCents: 58500,
+    depositText: '$375 deposit, balance due June 15',
+    extendedCents: 42000,
+    dayCents: 32000,
   },
 ];
+
+const usd = (cents: number) => `$${Math.round(cents / 100)}`;
 
 function descFor(e: CampEvent): string {
   return (
     `Coach Powers Camps ${e.who} overnight basketball camp at Eastern Mennonite ` +
-    `University for rising 4th–12th graders. A residential camp with skill ` +
-    `development, games, and competition. ${e.dateText} (overnight — see ` +
-    `registration for check-in/pickup times). Discounts available; some age ` +
-    `groups sold out last year, so register early at powersbballcamp.com ` +
-    `(contact justin@powersbballcamp.com).`
+    `University for rising 4th–12th graders (ages 9–18). ${e.dateText}. ` +
+    `Overnight ${usd(e.overnightCents)} total (${e.depositText}). Commuter ` +
+    `options: Extended Day (8 AM–9 PM) ${usd(e.extendedCents)}, Day Camper ` +
+    `(8 AM–5 PM) ${usd(e.dayCents)}. Some age groups sold out last year — ` +
+    `register early at powersbballcamp.com (contact justin@powersbballcamp.com).`
   );
 }
 
@@ -107,8 +123,9 @@ async function main() {
       location: [VENUE.lng, VENUE.lat] as [number, number],
       ageMin: 9,
       ageMax: 18,
-      costMinCents: null,
-      costMaxCents: null,
+      // Cost range: cheapest (Day Camper) to the full overnight total.
+      costMinCents: e.dayCents,
+      costMaxCents: e.overnightCents,
       currency: 'USD',
       availability: 'onsale',
       isVirtual: false,
@@ -123,13 +140,26 @@ async function main() {
         createdBy: 'script:ingest-powers-basketball-camp-2026',
         importedAt: new Date().toISOString(),
       },
-    }).onConflictDoNothing().returning({ id: activities.id });
+    })
+      // Re-runnable: update price/description/url in place on the existing rows
+      // (start time unchanged, so the sourceEventId key is stable).
+      .onConflictDoUpdate({
+        target: [activities.sourceId, activities.sourceEventId],
+        set: {
+          description: descFor(e),
+          url: URL,
+          organizerUrl: URL,
+          costMinCents: e.dayCents,
+          costMaxCents: e.overnightCents,
+        },
+      })
+      .returning({ id: activities.id });
 
     if (result.length > 0) {
-      console.log(`  + ${e.startAt.slice(0, 10)}  ${e.title}`);
+      console.log(`  ~ ${e.startAt.slice(0, 10)}  ${e.title}  (upserted)`);
       inserted++;
     } else {
-      console.log(`  = ${e.startAt.slice(0, 10)}  ${e.title}  (exists)`);
+      console.log(`  = ${e.startAt.slice(0, 10)}  ${e.title}  (no change)`);
       skipped++;
     }
   }
