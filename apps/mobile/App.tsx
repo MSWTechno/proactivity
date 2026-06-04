@@ -36,6 +36,7 @@ import {
 import { ALL_CATEGORY_KEYS, CATEGORIES, type CategoryKey } from './lib/categories';
 import { placeholderFor } from './lib/icons';
 import { LOCATION_PRESETS } from './lib/locations';
+import { logEvent, logScreenView } from './lib/analytics';
 
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity.app';
@@ -269,11 +270,22 @@ export default function App() {
     detectDeviceLocation();
   }, [detectDeviceLocation]);
 
+  // GA4 analytics: app open + home screen view, once on mount.
+  useEffect(() => {
+    logEvent('app_open');
+    logScreenView('home');
+  }, []);
+
   // Debounce search.
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  // GA4: log searches (debounced, non-empty only).
+  useEffect(() => {
+    if (debouncedSearch) logEvent('search', { search_term: debouncedSearch });
+  }, [debouncedSearch]);
 
   // Reverse-geocode once location is known. Skipped when a preset is picked —
   // the preset's own label is already shown.
@@ -600,7 +612,10 @@ export default function App() {
                 activity={item}
                 t={t}
                 onRate={() => setRatingTarget(item)}
-                onPress={() => setDetailActivity(item)}
+                onPress={() => {
+                  logEvent('select_event', { item_id: item.id, item_name: item.title.slice(0, 100) });
+                  setDetailActivity(item);
+                }}
               />
             );
           }}
