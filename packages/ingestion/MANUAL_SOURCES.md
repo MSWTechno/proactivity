@@ -34,6 +34,7 @@ Scripts upsert on (sourceId, sourceEventId), so re-running is safe.
 | ACTS volleyball clinics (Staunton, out of radius) | Sports | summer | flyer | `ingest-acts-vb-clinics-2026.ts` |
 | VA women's college bball camps (Google Sheet) | Sports camps | summer | Google Sheet | `ingest-va-wbb-camps-2026.ts` |
 | Rovo / Rocktown Volleyball | Sports | rolling | pre-existing | `ingest-rovo-2026.ts` |
+| Snapology of Harrisonburg — STEAM/robotics camps (45 sessions, 4 venues: Mt. Crawford SnapShop, Redeemer Classical, JMU BCM, DUCC) | STEAM/robotics day camps | Jun 8–Aug 14, Mon–Fri | saved MHTML of embed.snapology.com/licensee/150 registration list | `ingest-snapology-summer-camps-2026.ts` |
 
 ### VBS / Christian kids camps (summer, annual)
 | Church | 2026 dates | Source | Script |
@@ -53,5 +54,4 @@ Scripts upsert on (sourceId, sourceEventId), so re-running is safe.
 
 ## Still to add (2026)
 - **Stuarts Draft VFC Lawn Party** — only "Mid-August" known; needs a confirmed date (venue: 118 Draft Ave, Stuarts Draft; sdvfc.org).
-- **Snapology camps** (embed.snapology.com/licensee/150) — JS-only embed; need details from a flyer/screenshot.
 - **Charlottesville local calendars** — Eventbrite + Meetup Charlottesville already auto-source; local iCal calendars TBD.
