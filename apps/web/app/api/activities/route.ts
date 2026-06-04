@@ -220,8 +220,11 @@ export async function GET(request: Request) {
       id: r.id,
       title: r.title,
       description: r.description,
-      startAt: r.start_at,
-      endAt: r.end_at,
+      // Emit strict ISO 8601. postgres-js hands back timestamptz as a non-ISO
+      // string ("YYYY-MM-DD HH:MM:SS+00"); V8 parses it but React Native's
+      // Hermes engine returns Invalid Date, so the app showed "Invalid Date".
+      startAt: toIso(r.start_at),
+      endAt: r.end_at ? toIso(r.end_at) : null,
       timezone: r.timezone,
       venueName: r.venue_name,
       city: r.city,
@@ -292,6 +295,14 @@ export async function GET(request: Request) {
     total: filtered.length,
     hasMore,
   });
+}
+
+// Convert a DB timestamp (Date or postgres-js's non-ISO string) to strict ISO
+// 8601 so every client — including React Native's strict Hermes engine — parses
+// it. Falls back to the raw value if it somehow can't be parsed.
+function toIso(v: Date | string): string {
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toISOString();
 }
 
 function parseNum(v: string | null): number | null {
