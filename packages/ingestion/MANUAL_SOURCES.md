@@ -35,6 +35,7 @@ Scripts upsert on (sourceId, sourceEventId), so re-running is safe.
 | VA women's college bball camps (Google Sheet) | Sports camps | summer | Google Sheet | `ingest-va-wbb-camps-2026.ts` |
 | Rovo / Rocktown Volleyball | Sports | rolling | pre-existing | `ingest-rovo-2026.ts` |
 | Snapology of Harrisonburg — STEAM/robotics camps (45 sessions, 4 venues: Mt. Crawford SnapShop, Redeemer Classical, JMU BCM, DUCC) | STEAM/robotics day camps | Jun 8–Aug 14, Mon–Fri | saved MHTML of embed.snapology.com/licensee/150 registration list | `ingest-snapology-summer-camps-2026.ts` |
+| JMU "Loren LaPorte" Softball Camps (Jr. Dukes All-Skills + Prospect, 5 days) | Softball camps | Jun 23, Jun 24, Jul 14, Jul 15, Aug 23 | 2026 flyer + lorenlaportecamps.com / Ryzer (prices are 2025 rate — re-verify) | `ingest-jmu-softball-camps-2026.ts` |
 
 ### VBS / Christian kids camps (summer, annual)
 | Church | 2026 dates | Source | Script |
