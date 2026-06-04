@@ -12,6 +12,17 @@ const AD_SLOT_TOP = process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOP;
 const AD_SLOT_INFEED = process.env.NEXT_PUBLIC_ADSENSE_SLOT_INFEED;
 const AD_EVERY_N_CARDS = 6;
 
+// Sub-filters shown when "Camps" is selected — each AND-combines with camps
+// server-side (camps + sports = sports camps). Keys reuse the canonical
+// taxonomy; labels are camp-context wording. Keep in sync with mobile.
+const CAMP_FACETS: [CategoryKey, string][] = [
+  ['sports', 'Sports'],
+  ['arts', 'Arts'],
+  ['education', 'STEM / Learning'],
+  ['outdoor', 'Outdoor'],
+  ['vbs', 'VBS'],
+];
+
 interface Activity {
   id: string;
   title: string;
@@ -479,6 +490,29 @@ export default function HomePage() {
             </button>
           )}
         </div>
+
+        {/* When Camps is selected, offer a second row to narrow by camp type.
+            Each facet AND-combines with camps server-side (camps + sports =
+            sports camps). VBS is a camp specialization, so it lives here too. */}
+        {activeCategories.has('camps') && (
+          <div className="categories categories-sub" role="group" aria-label="Filter camps by type">
+            <span className="categories-sub-label">Camp type:</span>
+            {CAMP_FACETS.map(([key, label]) => {
+              const active = activeCategories.has(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`chip chip-sm ${active ? 'chip-active' : ''}`}
+                  onClick={() => toggleCategory(key)}
+                  aria-pressed={active}
+                >
+                  <span aria-hidden="true">{CATEGORIES[key].emoji}</span> {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {loading && items === null && <SkeletonList />}
