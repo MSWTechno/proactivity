@@ -55,6 +55,16 @@ async function getClientId(): Promise<string> {
   return clientIdPromise;
 }
 
+// GA4's Measurement Protocol infers Device Category from the request's
+// User-Agent. A React Native fetch sends a non-browser UA, so GA4 falls back to
+// "desktop". Send a representative mobile browser UA per platform so app hits
+// classify as mobile. (The `platform` event param above is still the reliable
+// app-vs-web split; this is just to fix the Device Category dimension.)
+const MOBILE_USER_AGENT =
+  Platform.OS === 'android'
+    ? 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+    : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
 type Params = Record<string, string | number | boolean>;
 
 export async function logEvent(name: string, params: Params = {}): Promise<void> {
@@ -79,7 +89,10 @@ export async function logEvent(name: string, params: Params = {}): Promise<void>
       `https://www.google-analytics.com/mp/collect?measurement_id=${MEASUREMENT_ID}&api_secret=${API_SECRET}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': MOBILE_USER_AGENT,
+        },
         body: JSON.stringify(body),
       },
     );
