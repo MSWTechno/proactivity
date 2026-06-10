@@ -356,28 +356,29 @@ async function mapToActivity(
   const evLng = evGeo?.longitude != null ? Number(evGeo.longitude) : null;
   const useEventCoords = Number.isFinite(evLat ?? NaN) && Number.isFinite(evLng ?? NaN);
 
-  // Per-event geo wins; if missing, try address geocoding; if that
-  // fails (or there's no address), fall back to a title-pattern lookup
-  // for "X at <Venue Name>" biased to the source's hub coords; ultimate
-  // fallback is the source's hub itself.
+  // Per-event geo wins; if missing, try address geocoding, then a
+  // title-pattern lookup for "X at <Venue Name>" (both biased toward the
+  // source's hub so nearby venues resolve). If everything fails we leave
+  // location null rather than stamping the source's hub coords. A hub-
+  // stamped event lands exactly on the metro centroid, reads as distance 0,
+  // and sorts to the TOP of the nearest-first feed — so geocode failures
+  // (often out-of-area events that leak into a city discovery page) would
+  // become the MOST prominent results. A null location is excluded by the
+  // API's radius filter instead, so the event just doesn't show in geo
+  // results rather than showing in the wrong place.
   const titleVenue = extractVenueFromTitle(ev.name ?? '');
-  let location: { lat: number; lng: number };
+  let location: { lat: number; lng: number } | null;
   if (useEventCoords) {
     location = { lat: evLat!, lng: evLng! };
   } else if (addressString) {
     const geocoded = await geocodeAddress(addressString, { lat: cfg.lat, lng: cfg.lng });
     if (geocoded) location = geocoded;
-    else if (titleVenue) {
-      const place = await geocodeNamedPlace(titleVenue, { lat: cfg.lat, lng: cfg.lng });
-      location = place ?? { lat: cfg.lat, lng: cfg.lng };
-    } else {
-      location = { lat: cfg.lat, lng: cfg.lng };
-    }
+    else if (titleVenue) location = await geocodeNamedPlace(titleVenue, { lat: cfg.lat, lng: cfg.lng });
+    else location = null;
   } else if (titleVenue) {
-    const place = await geocodeNamedPlace(titleVenue, { lat: cfg.lat, lng: cfg.lng });
-    location = place ?? { lat: cfg.lat, lng: cfg.lng };
+    location = await geocodeNamedPlace(titleVenue, { lat: cfg.lat, lng: cfg.lng });
   } else {
-    location = { lat: cfg.lat, lng: cfg.lng };
+    location = null;
   }
 
   return {
