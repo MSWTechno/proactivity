@@ -48,6 +48,7 @@ Scripts upsert on (sourceId, sourceEventId), so re-running is safe.
 | Harrisonburg First Assembly — "Illumination Station" | Jun 14–18 | Subsplash event page | `ingest-hfa-illumination-vbs-2026.ts` |
 | Faith Baptist (Broadway) — "Camp Faith" | Jun 8–10 | flyer + faithbaptistbroadway.org | `ingest-faith-baptist-camp-faith-vbs-2026.ts` |
 | New Beginnings Church — "Into the Wild" | Jul 6–10 | flyer + nbcfamily.com | `ingest-nbc-into-the-wild-kids-camp-2026.ts` |
+| Harrisonburg Mennonite — Micah 6:8 theme (rising K–grade 6) | Jul 13–16 | harrisonburgmennonite.org/vacation-bible-school | `ingest-hmc-vbs-2026.ts` |
 
 ## One-off / uncertain recurrence (re-check before assuming they repeat)
 
