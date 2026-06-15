@@ -6,6 +6,9 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Bring Proactivity to your area · Proactivity',
   description: "Don't see your city? Tell us where you are and we'll prioritize launching there next.",
+  // Resolved against metadataBase (apex), so even the www host emits an
+  // apex canonical. Belt-and-suspenders alongside the www->apex redirect.
+  alternates: { canonical: '/request-area' },
 };
 
 export default function RequestAreaPage() {

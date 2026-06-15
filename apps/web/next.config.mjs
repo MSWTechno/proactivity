@@ -2,6 +2,21 @@
 const nextConfig = {
   // Allow workspace packages with TS source to be compiled by Next.
   transpilePackages: ['@proactivity/db', '@proactivity/ingestion'],
+  // Canonical host is the apex (proactivity.app) — matches metadataBase, the
+  // sitemap, and og:url. www.proactivity.app serves the same deployment, so
+  // without this Google indexes both hosts as duplicates ("Duplicate without
+  // user-selected canonical" in Search Console). 308-redirect www -> apex so
+  // there is one canonical host for every path.
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.proactivity.app' }],
+        destination: 'https://proactivity.app/:path*',
+        permanent: true,
+      },
+    ];
+  },
   webpack(config) {
     // Workspace packages use ESM-style ".js" extensions in their imports
     // (required for Node ESM runtime). Tell webpack to also resolve those
