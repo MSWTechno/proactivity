@@ -1,10 +1,11 @@
 /**
  * One-off ingestion for Rockingham Recreation Center's open-gym schedule,
- * week of Mon Jun 1 – Sat Jun 6, 2026.
- * Source: flyer image saved 2026-05-31 ("OPEN GYM SCHEDULE — JUNE 1-6").
+ * week of Mon Jun 15 – Sat Jun 20, 2026.
+ * Source: flyer image saved 2026-06-15 ("OPEN GYM SCHEDULE — JUNE 15-20").
+ * (Re-pointed each week; prior weeks' rows age off via the end_at >= now() filter.)
  *
- * Run:
- *   pnpm --filter @proactivity/ingestion exec tsx --env-file=../../.env \
+ * Run (from packages/ingestion):
+ *   pnpm exec tsx --env-file=D:/workspaces/proactivity/.env \
  *     scripts/ingest-rockingham-rec-open-gym-2026.ts
  *
  * Idempotent: each row keys on (sourceId, sourceEventId) via
@@ -36,14 +37,15 @@ const VENUE = {
 // EDT (June → UTC-04:00). Explicit offsets so ISO strings are unambiguous.
 const EDT = '-04:00';
 
-// Flyer labels Mon–Sat as June 1–6, 2026.
+// Flyer labels Mon–Fri as June 15–19, 2026. Saturday Jun 20 is CLOSED
+// ("NO OPEN GYM OR WALKING — hosting Rocktown Volleyball Tournament"), so no
+// sat slots this week.
 const DAY: Record<string, string> = {
-  mon: '2026-06-01',
-  tue: '2026-06-02',
-  wed: '2026-06-03',
-  thu: '2026-06-04',
-  fri: '2026-06-05',
-  sat: '2026-06-06',
+  mon: '2026-06-15',
+  tue: '2026-06-16',
+  wed: '2026-06-17',
+  thu: '2026-06-18',
+  fri: '2026-06-19',
 };
 
 type Slot = [day: keyof typeof DAY | string, start: string, end: string];
@@ -54,56 +56,41 @@ interface ActivityDef {
 }
 
 // Per-activity hours straight off the flyer grid; "NONE" cells dropped.
+// (Walker icon = Indoor Track / walking; ping pong is NONE every day this week.)
 const SCHEDULE: ActivityDef[] = [
   {
     activity: 'Indoor Track',
     slots: [
-      ['mon', '08:00', '20:00'],
-      ['tue', '08:00', '20:00'],
-      ['wed', '08:00', '20:00'],
-      ['thu', '08:00', '20:00'],
-      ['fri', '08:00', '20:00'],
-      ['sat', '08:00', '14:00'],
+      ['mon', '08:00', '15:00'],
+      ['tue', '08:00', '15:00'],
+      ['wed', '08:00', '15:00'],
+      ['thu', '08:00', '15:00'],
+      ['fri', '11:00', '20:00'],
     ],
   },
   {
     activity: 'Basketball',
     slots: [
-      ['mon', '15:00', '20:00'],
-      ['tue', '15:00', '20:00'],
-      ['wed', '10:00', '20:00'],
-      ['thu', '15:00', '20:00'],
-      ['fri', '08:00', '20:00'],
-      ['sat', '08:00', '14:00'],
+      ['mon', '10:00', '16:00'],
+      ['tue', '08:00', '16:00'],
+      ['wed', '08:00', '16:00'],
+      ['thu', '08:00', '16:00'],
     ],
   },
   {
     activity: 'Volleyball',
     slots: [
-      ['mon', '15:00', '20:00'],
-      ['tue', '15:00', '20:00'],
-      ['wed', '10:00', '20:00'],
-      ['thu', '08:00', '20:00'],
-      ['fri', '08:00', '20:00'],
-      ['sat', '08:00', '14:00'],
+      ['fri', '11:00', '17:00'],
     ],
   },
   {
     activity: 'Pickleball',
     slots: [
-      ['mon', '08:00', '11:00'],
-      ['tue', '15:00', '20:00'],
-      ['wed', '10:00', '13:00'],
-      ['thu', '08:00', '13:00'],
-      ['fri', '08:00', '17:00'],
-      ['sat', '08:00', '14:00'],
-    ],
-  },
-  {
-    activity: 'Ping Pong',
-    slots: [
-      ['wed', '08:00', '12:00'],
-      ['thu', '08:00', '12:00'],
+      ['mon', '10:00', '14:00'],
+      ['tue', '08:00', '10:00'],
+      ['wed', '08:00', '14:00'],
+      ['thu', '08:00', '14:00'],
+      ['fri', '15:00', '18:00'],
     ],
   },
 ];
