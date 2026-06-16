@@ -27,6 +27,7 @@ Scripts upsert on (sourceId, sourceEventId), so re-running is safe.
 | Sampson Basketball Academy (Girls + Boys overnight) | Basketball camp | Jul 13–15, Jul 20–23 | flyer + sampsonbasketballacademy.com | `ingest-sba-girls-basketball-camp-2026.ts`, `ingest-sba-boys-basketball-camp-2026.ts` |
 | Coach Powers Basketball Camps (Girls + Boys overnight) | Basketball camp | Jul 13–15, Jul 20–23 | flyer + sites.google.com/powersbballcamp.com (NOTE: powersbballcamp.com has a bad TLS cert) | `ingest-powers-basketball-camp-2026.ts` |
 | Rockingham County Youth Volleyball Clinic (3rd–5th, 6th–8th) | Sports clinic | Jun 23–Jul 30, Tue/Thu | flyer + rec1 registration | `ingest-rockingham-youth-volleyball-clinic-2026.ts` |
+| Junior Gobblers Volleyball Camp (Broadway HS, rising 4th–8th) | Volleyball camp | Jul 27–29, 9am–12pm | flyer; reg form forms.gle/ybMLiX9TiB9tp5or9 (QR); Coach Coffman | `ingest-junior-gobblers-volleyball-camp-2026.ts` |
 | Luxe Volleyball Academy open gym/play | Sports | Jun (rolling) | flyers; org key `user:luxe-volleyball-academy-c0cd53` | `ingest-luxe-open-gym-2026.ts` |
 | Rockingham Rec Center open gym | Drop-in sports | weekly | flyer; facebook.com/rockinghamcountyrecreation | `ingest-rockingham-rec-open-gym-2026.ts` |
 | Hburg Parks & Rec special events | Community | summer | hburg parks & rec | `ingest-hburg-parks-rec-2026.ts` |
