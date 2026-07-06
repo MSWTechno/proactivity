@@ -1,7 +1,7 @@
 /**
  * One-off ingestion for Rockingham Recreation Center's open-gym schedule,
- * week of Mon Jun 15 – Sat Jun 20, 2026.
- * Source: flyer image saved 2026-06-15 ("OPEN GYM SCHEDULE — JUNE 15-20").
+ * week of Mon Jul 6 – Sat Jul 11, 2026.
+ * Source: flyer image saved 2026-07-05 ("OPEN GYM SCHEDULE — JULY 6-11").
  * (Re-pointed each week; prior weeks' rows age off via the end_at >= now() filter.)
  *
  * Run (from packages/ingestion):
@@ -34,18 +34,17 @@ const VENUE = {
   lng: -78.7745,
 };
 
-// EDT (June → UTC-04:00). Explicit offsets so ISO strings are unambiguous.
+// EDT (July → UTC-04:00). Explicit offsets so ISO strings are unambiguous.
 const EDT = '-04:00';
 
-// Flyer labels Mon–Fri as June 15–19, 2026. Saturday Jun 20 is CLOSED
-// ("NO OPEN GYM OR WALKING — hosting Rocktown Volleyball Tournament"), so no
-// sat slots this week.
+// Flyer labels Mon–Sat as July 6–11, 2026.
 const DAY: Record<string, string> = {
-  mon: '2026-06-15',
-  tue: '2026-06-16',
-  wed: '2026-06-17',
-  thu: '2026-06-18',
-  fri: '2026-06-19',
+  mon: '2026-07-06',
+  tue: '2026-07-07',
+  wed: '2026-07-08',
+  thu: '2026-07-09',
+  fri: '2026-07-10',
+  sat: '2026-07-11',
 };
 
 type Slot = [day: keyof typeof DAY | string, start: string, end: string];
@@ -56,41 +55,35 @@ interface ActivityDef {
 }
 
 // Per-activity hours straight off the flyer grid; "NONE" cells dropped.
-// (Walker icon = Indoor Track / walking; ping pong is NONE every day this week.)
+// (Walker icon = Indoor Track / walking; pickleball and ping pong are NONE
+// every day this week.)
 const SCHEDULE: ActivityDef[] = [
   {
     activity: 'Indoor Track',
     slots: [
-      ['mon', '08:00', '15:00'],
-      ['tue', '08:00', '15:00'],
-      ['wed', '08:00', '15:00'],
-      ['thu', '08:00', '15:00'],
-      ['fri', '11:00', '20:00'],
+      ['mon', '16:30', '20:00'],
+      ['tue', '16:30', '20:00'],
+      ['wed', '16:30', '20:00'],
+      ['thu', '16:30', '20:00'],
+      ['fri', '08:00', '20:00'],
+      ['sat', '11:00', '14:00'],
     ],
   },
   {
     activity: 'Basketball',
     slots: [
-      ['mon', '10:00', '16:00'],
-      ['tue', '08:00', '16:00'],
-      ['wed', '08:00', '16:00'],
-      ['thu', '08:00', '16:00'],
+      ['mon', '17:00', '20:00'],
+      ['tue', '17:00', '20:00'],
+      ['thu', '17:00', '20:00'],
+      ['fri', '08:00', '20:00'],
+      ['sat', '11:00', '14:00'],
     ],
   },
   {
     activity: 'Volleyball',
     slots: [
-      ['fri', '11:00', '17:00'],
-    ],
-  },
-  {
-    activity: 'Pickleball',
-    slots: [
-      ['mon', '10:00', '14:00'],
-      ['tue', '08:00', '10:00'],
-      ['wed', '08:00', '14:00'],
-      ['thu', '08:00', '14:00'],
-      ['fri', '15:00', '18:00'],
+      ['fri', '15:00', '20:00'],
+      ['sat', '11:00', '14:00'],
     ],
   },
 ];
