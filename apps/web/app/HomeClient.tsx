@@ -632,11 +632,42 @@ function groupByDay(items: Activity[]): { label: string; items: Activity[] }[] {
   if (items.length === 0) return [];
   const map = new Map<string, Activity[]>();
   for (const a of items) {
-    const label = dayLabel(new Date(a.startAt));
+    const label = dayLabel(new Date(effectiveStart(a)));
     if (!map.has(label)) map.set(label, []);
     map.get(label)!.push(a);
   }
   return [...map.entries()].map(([label, items]) => ({ label, items }));
+}
+
+/**
+ * The date an event is relevant to a reader *today*.
+ *
+ * The feed includes anything that hasn't ENDED yet (the API filters on
+ * `COALESCE(end_at, start_at) >= now()`), so a two-week camp or a running
+ * exhibit stays listed after it opens — which is what we want, you can still
+ * turn up on day three. But its `startAt` is in the past, and grouping on that
+ * raw value produced day headings dated before today.
+ *
+ * For anything already underway, the useful date is today: it's on now. Events
+ * that haven't started are unaffected.
+ */
+function effectiveStart(a: Activity): string {
+  const start = new Date(a.startAt);
+  if (isNaN(start.getTime())) return a.startAt;
+  const now = new Date();
+  if (start >= now) return a.startAt;
+  const end = a.endAt ? new Date(a.endAt) : null;
+  const stillRunning = end != null && !isNaN(end.getTime()) && end >= now;
+  return stillRunning ? now.toISOString() : a.startAt;
+}
+
+/** True when the event began before now but hasn't ended — "on now". */
+function isUnderway(a: Activity): boolean {
+  const start = new Date(a.startAt);
+  const end = a.endAt ? new Date(a.endAt) : null;
+  if (isNaN(start.getTime())) return false;
+  const now = new Date();
+  return start < now && end != null && !isNaN(end.getTime()) && end >= now;
 }
 
 function dayLabel(date: Date): string {
@@ -1035,7 +1066,13 @@ function ActivityCard({
   const end = a.endAt ? new Date(a.endAt) : null;
   const sameDayEnd = end && !isNaN(end.getTime()) && end.toDateString() === start.toDateString();
   const endStr = sameDayEnd ? end!.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }) : null;
-  const timeRange = endStr ? `${timeStr} – ${endStr}` : timeStr;
+  // An event that's already running would otherwise show its original start
+  // time — a time on a day that has passed. Say it's on now and when it ends.
+  const timeRange = isUnderway(a)
+    ? `Ongoing · through ${end!.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: tz })}`
+    : endStr
+      ? `${timeStr} – ${endStr}`
+      : timeStr;
   const place = [a.venueName, a.city].filter(Boolean).join(' · ');
   const distance = a.distanceMeters != null
     ? (a.distanceMeters * 0.000621371 < 0.5 ? '< 1 mi' : `${(a.distanceMeters * 0.000621371).toFixed(1)} mi`)

@@ -1424,11 +1424,28 @@ function groupByDay(items: Activity[]): { title: string; data: Activity[] }[] {
   const map = new Map<string, Activity[]>();
   const order: string[] = [];
   for (const a of items) {
-    const label = dayLabel(new Date(a.startAt));
+    const label = dayLabel(new Date(effectiveStart(a)));
     if (!map.has(label)) { map.set(label, []); order.push(label); }
     map.get(label)!.push(a);
   }
   return order.map((title) => ({ title, data: map.get(title)! }));
+}
+
+/**
+ * The date an event is relevant to a reader *today*. The feed keeps anything
+ * that hasn't ENDED (API filters `COALESCE(end_at, start_at) >= now()`), so a
+ * multi-day camp stays listed after it opens — but grouping on its raw
+ * `startAt` produced day headings dated before today. Anything already
+ * underway belongs under today. Keep in sync with apps/web HomeClient.tsx.
+ */
+function effectiveStart(a: Activity): string {
+  const start = new Date(a.startAt);
+  if (isNaN(start.getTime())) return a.startAt;
+  const now = new Date();
+  if (start >= now) return a.startAt;
+  const end = a.endAt ? new Date(a.endAt) : null;
+  const stillRunning = end != null && !isNaN(end.getTime()) && end >= now;
+  return stillRunning ? now.toISOString() : a.startAt;
 }
 
 function dayLabel(date: Date): string {
