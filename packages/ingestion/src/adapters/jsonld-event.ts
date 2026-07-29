@@ -5,6 +5,7 @@ import type {
   ParseConfigResult,
 } from '../types.js';
 import { geocodeAddress, geocodeNamedPlace } from '../geocode.js';
+import { throttledFetchText, HostCooldownError } from '../http.js';
 
 /**
  * Pull a venue name out of an event title like
@@ -163,16 +164,41 @@ export const jsonLdEventAdapter: SourceAdapter = {
       try {
         const html = await fetchText(detailUrl, signal);
         const events = extractEventJsonLd(html);
+        const nextSession = extractNextAvailableSession(html);
         for (const ev of events) {
           if (seenUrls.has(detailUrl)) continue;
           seenUrls.add(detailUrl);
-          const start = parseLooseIso(ev.startDate);
+          let candidate = ev;
+          let start = parseLooseIso(ev.startDate);
+
+          // Recurring series publish the FIRST occurrence as startDate and the
+          // LAST as endDate, with no recurrence rule in the JSON-LD. Once the
+          // first occurrence passes, the naive read is a months-long event
+          // that "started" in the past — and because the guard below skips
+          // past-start events, an existing row would never be corrected, it
+          // would just sit in the feed with a stale date until the series
+          // ended. Eventbrite does expose the next real occurrence, so roll
+          // forward onto it and drop the series-wide endDate (we don't know
+          // the single occurrence's duration, and the series end would keep
+          // the row looking like a 6-month event).
+          if (start && start < now && nextSession && nextSession > now) {
+            candidate = { ...ev, startDate: nextSession.toISOString(), endDate: undefined };
+            start = nextSession;
+          }
+
           if (!start || start < now || start > horizon) continue;
-          yield await mapToActivity(ev, detailUrl, config, defaultAvailability);
+          yield await mapToActivity(candidate, detailUrl, config, defaultAvailability);
           yielded++;
           if (yielded >= maxEvents) return;
         }
       } catch (e) {
+        // Once the host's breaker is open every remaining detail URL will
+        // fail identically — stop rather than log a hundred times. Whatever
+        // we already yielded still gets upserted.
+        if (e instanceof HostCooldownError) {
+          console.warn(`  [jsonld-event] ${e.message} — stopping detail crawl for this source`);
+          break;
+        }
         console.warn(`  [jsonld-event] skipping ${detailUrl}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
@@ -458,6 +484,19 @@ function parseLooseIso(s: string | undefined | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Eventbrite series pages carry the next real occurrence in their embedded
+ * server state as `"nextAvailableSession":"2026-08-09T19:00:00-04"`. It is not
+ * in the JSON-LD, which only describes the series envelope. Absent on
+ * single-occurrence events, which is exactly when we don't want it.
+ */
+const NEXT_SESSION_RE = /"nextAvailableSession"\s*:\s*"([^"]+)"/;
+
+function extractNextAvailableSession(html: string): Date | null {
+  const m = html.match(NEXT_SESSION_RE);
+  return m?.[1] ? parseLooseIso(m[1]) : null;
+}
+
 function parsePrice(v: string | number | undefined): number | null {
   if (v == null) return null;
   const n = typeof v === 'number' ? v : Number(v);
@@ -541,15 +580,16 @@ function stripHtml(s: string): string {
 // ---- HTTP ----
 
 async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
-  const res = await fetch(url, {
+  // Host pacing, 429 backoff and the circuit breaker all live in http.ts —
+  // they have to be shared across sources, since 32 Eventbrite metro sources
+  // run through this same adapter and hit one host.
+  return throttledFetchText(url, {
+    signal,
     headers: {
       'User-Agent': 'Proactivity/0.1 (+https://github.com/proactivity)',
       Accept: 'text/html, application/json, */*;q=0.5',
     },
-    signal,
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.text();
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {

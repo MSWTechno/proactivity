@@ -6,14 +6,17 @@ import { runAllSources } from '@proactivity/ingestion';
 // CRON_SECRET is set as a project env var.
 //
 // Stay on the Node.js runtime — postgres-js + pg geography types don't run
-// on Edge. maxDuration is 120s — current observed worst case (Visit
-// Shenandoah at ~54s, total ~54s with concurrency=4) leaves ~2x headroom
-// before this becomes a problem again. Vercel's per-plan ceiling is
-// well above this so the value is honored on every plan today.
+// on Edge.
+//
+// maxDuration was 120s, tuned back when there were ~20 sources. The VA metro
+// tiling took it to 65, and on 2026-07-29 the sweep hit FUNCTION_INVOCATION_
+// TIMEOUT at exactly 120s (55 of 65 sources had run). 300s is Vercel's
+// current default ceiling. Note this buys headroom, it does not make the
+// sweep bounded — see the tiering note in runner.ts.
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;

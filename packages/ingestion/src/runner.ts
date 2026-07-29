@@ -11,11 +11,96 @@ const BATCH_SIZE = 100;
 // faster cron wallclock.
 const DEFAULT_CONCURRENCY = 4;
 
+/**
+ * Per-host caps on how many sources may run in a single sweep.
+ *
+ * Why this exists: http.ts serializes requests per host to stay under rate
+ * limits, so a host's throughput is fixed no matter how many workers we run.
+ * Eventbrite paces at ~1 req/s and each metro source costs ~25-35 requests,
+ * so all 32 VA metros in one sweep is 13-18 minutes — far past any function
+ * timeout. Instead we rotate: each run takes the least-recently-run sources
+ * for that host, so every metro still gets refreshed, just on a cycle rather
+ * than daily.
+ *
+ * Cap of 4 => a full pass over 32 Eventbrite metros every 8 days, at roughly
+ * 135s of Eventbrite time per run.
+ */
+const HOST_ROTATION: Array<[RegExp, number]> = [[/(^|\.)eventbrite\.com$/, 4]];
+
+type SourceRow = typeof sources.$inferSelect;
+
+/** Best-effort host for a source, across the differing adapter config shapes. */
+function sourceHost(source: SourceRow): string | null {
+  const cfg = source.config as Record<string, unknown> | null;
+  const raw = cfg?.entryUrl ?? cfg?.url ?? cfg?.baseUrl;
+  if (typeof raw !== 'string') return null;
+  try {
+    return new URL(raw).host;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Apply HOST_ROTATION, returning the sources to run this sweep. Selection is
+ * least-recently-run first (never-run wins outright), which self-balances as
+ * sources are added or removed and needs no extra bookkeeping column.
+ */
+export function selectSourcesForRun(enabled: SourceRow[]): {
+  selected: SourceRow[];
+  skipped: SourceRow[];
+} {
+  const selected: SourceRow[] = [];
+  const skipped: SourceRow[] = [];
+  const capped = new Map<RegExp, SourceRow[]>();
+
+  for (const source of enabled) {
+    const host = sourceHost(source);
+    const rule = host ? HOST_ROTATION.find(([pattern]) => pattern.test(host)) : undefined;
+    if (!rule) {
+      selected.push(source);
+      continue;
+    }
+    const bucket = capped.get(rule[0]) ?? [];
+    bucket.push(source);
+    capped.set(rule[0], bucket);
+  }
+
+  for (const [pattern, bucket] of capped) {
+    const limit = HOST_ROTATION.find(([p]) => p === pattern)![1];
+    // Nulls (never run) first, then oldest last_run_at.
+    bucket.sort((a, b) => {
+      const at = a.lastRunAt?.getTime() ?? -Infinity;
+      const bt = b.lastRunAt?.getTime() ?? -Infinity;
+      return at - bt;
+    });
+    selected.push(...bucket.slice(0, limit));
+    skipped.push(...bucket.slice(limit));
+  }
+
+  return { selected, skipped };
+}
+
 export async function runAllSources(): Promise<void> {
-  const enabled = await db.select().from(sources).where(eq(sources.enabled, true));
-  if (enabled.length === 0) {
+  const allEnabled = await db.select().from(sources).where(eq(sources.enabled, true));
+  if (allEnabled.length === 0) {
     console.log('No enabled sources. Insert a row into `sources` to start ingesting.');
     return;
+  }
+
+  const { selected: enabled, skipped } = selectSourcesForRun(allEnabled);
+  if (skipped.length > 0) {
+    // Never let a coverage cap be silent — a short run would otherwise read
+    // as "everything refreshed".
+    const oldest = skipped.reduce<Date | null>(
+      (acc, s) => (s.lastRunAt && (!acc || s.lastRunAt < acc) ? s.lastRunAt : acc),
+      null,
+    );
+    console.log(
+      `[runner] rotation: running ${enabled.length}/${allEnabled.length} sources; ` +
+        `${skipped.length} deferred to a later run` +
+        (oldest ? ` (oldest deferred last ran ${oldest.toISOString()})` : ''),
+    );
   }
 
   const concurrency = (() => {
