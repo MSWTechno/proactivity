@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { categorize, ALL_CATEGORY_KEYS, type CategoryKey } from '@/lib/categories';
 import { inferAgeRange } from '@/lib/age';
+import { dedupePipeline } from '@/lib/dedupe';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,13 +118,22 @@ export async function GET(request: Request) {
   // Featured (paying organizer) events bubble to the top regardless of sort.
   // Past mode forces newest-first chronological order — the other sort modes
   // don't really make sense looking backwards.
+  // Bare column names, no `a.` prefix: this orders the de-duplicated set, which
+  // the pipeline returns as a flat projection with the table alias gone.
+  //
+  // Every variant ends in `id` to force a total order. Without it the sort keys
+  // tie constantly — sources with no resolvable venue stamp their own hub
+  // coords, so whole clusters of events share an identical distance_m — and
+  // Postgres is then free to return tied rows in a different order per query.
+  // With OFFSET paging that means page 2 can repeat or skip rows from page 1,
+  // which is what infinite scroll actually surfaces to the user.
   const orderClause = isPast
-    ? sql`ORDER BY is_featured DESC, a.start_at DESC`
+    ? sql`ORDER BY is_featured DESC, start_at DESC, id`
     : effectiveSort === 'distance'
-      ? sql`ORDER BY is_featured DESC, distance_m ASC NULLS LAST`
+      ? sql`ORDER BY is_featured DESC, distance_m ASC NULLS LAST, id`
       : effectiveSort === 'cost'
-        ? sql`ORDER BY is_featured DESC, a.cost_min_cents ASC NULLS LAST`
-        : sql`ORDER BY is_featured DESC, a.start_at ASC`;
+        ? sql`ORDER BY is_featured DESC, cost_min_cents ASC NULLS LAST, id`
+        : sql`ORDER BY is_featured DESC, start_at ASC, id`;
 
   // Category is a *derived* field (computed by categorize() at response time
   // from raw categories + title/description), so it can't be filtered in SQL
@@ -138,9 +148,11 @@ export async function GET(request: Request) {
   const sqlLimit = categoryActive ? CATEGORY_FETCH_CAP : pageSize;
   const sqlOffset = categoryActive ? 0 : page * pageSize;
 
-  const rows = (await sql`
+  // The de-duplication pipeline wraps this and drops duplicate rows *before*
+  // the LIMIT below — dropping them afterwards would return short pages.
+  const baseQuery = sql`
     SELECT
-      a.id, a.title, a.description, a.start_at, a.end_at, a.timezone,
+      a.id, a.source_event_id, a.title, a.description, a.start_at, a.end_at, a.timezone,
       a.venue_name, a.city, a.region,
       a.age_min, a.age_max,
       a.is_virtual,
@@ -198,6 +210,10 @@ export async function GET(request: Request) {
       ${costFilter}
       ${searchFilter}
       ${virtualFilter}
+  `;
+
+  const rows = (await sql`
+    ${dedupePipeline(baseQuery)}
     ${orderClause}
     LIMIT ${sqlLimit} OFFSET ${sqlOffset}
   `) as unknown as ActivityRow[];

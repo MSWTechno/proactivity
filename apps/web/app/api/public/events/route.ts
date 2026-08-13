@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { authenticate } from '@/lib/api-auth';
+import { dedupePipeline } from '@/lib/dedupe';
 import { LOCATION_PRESETS, findPreset } from '@/lib/locations';
 
 export const dynamic = 'force-dynamic';
@@ -90,8 +91,9 @@ export async function GET(request: Request) {
   // side for speed since partners don't need the post-fetch category
   // re-derivation we do for the canonical homepage.
   const rows = (await sql`
+    ${dedupePipeline(sql`
     SELECT
-      a.id, a.title, a.description, a.start_at, a.end_at, a.timezone,
+      a.id, a.source_event_id, a.title, a.description, a.start_at, a.end_at, a.timezone,
       a.url, a.image_url,
       a.venue_name, a.address, a.city, a.region,
       a.cost_min_cents, a.cost_max_cents, a.currency, a.availability,
@@ -115,7 +117,8 @@ export async function GET(request: Request) {
         ST_MakePoint(${lng}, ${lat})::geography,
         ${radiusKm * 1000}
       )
-    ORDER BY a.start_at ASC
+    `)}
+    ORDER BY start_at ASC
     LIMIT ${limit}
   `) as unknown as Array<{
     id: string;
