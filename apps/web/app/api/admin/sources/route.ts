@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
+import { isPassiveAdapter } from '@proactivity/ingestion';
 import { requireAdmin } from '@/lib/admin-auth';
 import { LOCATION_PRESETS } from '@/lib/locations';
 
@@ -98,6 +99,9 @@ export async function GET() {
       id: r.id,
       name: r.name,
       adapterKey: r.adapter_key,
+      // Hand-entered sources have no feed, so "stale"/"never run" would be
+      // misleading — the client renders them as their own health state.
+      passive: isPassiveAdapter(r.adapter_key),
       enabled: r.enabled,
       lastRunAt: r.last_run_at,
       lastStatus: r.last_status,

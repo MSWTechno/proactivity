@@ -1,6 +1,6 @@
 import { db, activities, sources, sql } from '@proactivity/db';
-import { eq, sql as drizzleSql } from 'drizzle-orm';
-import { getAdapter } from './registry.js';
+import { eq, inArray, sql as drizzleSql } from 'drizzle-orm';
+import { getAdapter, isPassiveAdapter } from './registry.js';
 import type { NormalizedActivity } from './types.js';
 import { deriveOrganizerKey } from './organizer.js';
 
@@ -82,7 +82,23 @@ export function selectSourcesForRun(enabled: SourceRow[]): {
 }
 
 export async function runAllSources(): Promise<void> {
-  const allEnabled = await db.select().from(sources).where(eq(sources.enabled, true));
+  const enabledRows = await db.select().from(sources).where(eq(sources.enabled, true));
+  // Passive sources have no feed — drop them before selection so they neither
+  // consume a worker slot nor land in the rotation logging as if deferred.
+  const allEnabled = enabledRows.filter((s) => !isPassiveAdapter(s.adapterKey));
+  const passive = enabledRows.filter((s) => isPassiveAdapter(s.adapterKey));
+  if (passive.length > 0) {
+    console.log(
+      `[runner] skipping ${passive.length} passive source(s) with nothing to fetch: ` +
+        passive.map((s) => `${s.name} (${s.adapterKey})`).join(', '),
+    );
+    // Clear any error left by an older build that treated these as unknown
+    // adapters, so the admin health view isn't permanently red.
+    await db
+      .update(sources)
+      .set({ lastStatus: 'passive', lastError: null })
+      .where(inArray(sources.id, passive.map((s) => s.id)));
+  }
   if (allEnabled.length === 0) {
     console.log('No enabled sources. Insert a row into `sources` to start ingesting.');
     return;
@@ -144,6 +160,17 @@ export async function runSource(
   sourceName: string,
   config: Record<string, unknown>,
 ): Promise<void> {
+  if (isPassiveAdapter(adapterKey)) {
+    // Hand-entered rows — nothing to fetch. Treated as a no-op rather than a
+    // failure, including when an admin hits "Re-ingest" on one by hand.
+    console.log(`[${sourceName}] passive source (adapter=${adapterKey}) — nothing to fetch`);
+    await db
+      .update(sources)
+      .set({ lastStatus: 'passive', lastError: null })
+      .where(eq(sources.id, sourceId));
+    return;
+  }
+
   const adapter = getAdapter(adapterKey);
   if (!adapter) {
     console.error(`[${sourceName}] no adapter registered for key "${adapterKey}"`);

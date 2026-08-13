@@ -13,6 +13,23 @@ const adapters: ReadonlyMap<string, SourceAdapter> = new Map([
   [rssAdapter.key, rssAdapter],
 ]);
 
+/**
+ * Adapter keys for sources whose rows are written straight to the DB —
+ * the admin event form (`manual`) and organizer submissions (`organizer`) —
+ * rather than fetched from a feed. They exist only to give those activities
+ * a source_id to hang off, so there is nothing for the runner to ingest.
+ *
+ * Without this the nightly sweep picks them up like any other enabled source,
+ * finds no adapter, and parks them at last_status='error' forever — real
+ * failures then hide in the noise.
+ */
+const PASSIVE_ADAPTER_KEYS: ReadonlySet<string> = new Set(['manual', 'organizer']);
+
+/** True for sources that hold hand-entered rows and have no feed to fetch. */
+export function isPassiveAdapter(key: string): boolean {
+  return PASSIVE_ADAPTER_KEYS.has(key);
+}
+
 export function getAdapter(key: string): SourceAdapter | undefined {
   return adapters.get(key);
 }

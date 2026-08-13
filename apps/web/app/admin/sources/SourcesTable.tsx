@@ -11,6 +11,8 @@ interface SourceRow {
   id: string;
   name: string;
   adapterKey: string;
+  /** Hand-entered source (manual / organizer) — no feed, never ingested. */
+  passive: boolean;
   enabled: boolean;
   lastRunAt: string | null;
   lastStatus: 'ok' | 'error' | null | string;
@@ -51,6 +53,9 @@ function relTime(iso: string | null): string {
 
 function healthStatus(s: SourceRow): { label: string; color: string; tone: 'ok' | 'warn' | 'error' | 'idle' } {
   if (!s.enabled) return { label: 'disabled', color: 'var(--fg-subtle)', tone: 'idle' };
+  // Passive sources are never fetched, so run-age tells us nothing about
+  // their health — don't let them age into 'stale' or count as errors.
+  if (s.passive) return { label: 'hand-entered', color: 'var(--fg-muted)', tone: 'idle' };
   if (s.lastStatus === 'error') return { label: 'error', color: '#c44', tone: 'error' };
   if (!s.lastRunAt) return { label: 'never run', color: 'var(--fg-muted)', tone: 'warn' };
   const hoursSince = (Date.now() - new Date(s.lastRunAt).getTime()) / (1000 * 60 * 60);
@@ -110,8 +115,11 @@ export default function SourcesTable() {
   };
 
   const enabled = items.filter((s) => s.enabled);
-  const errorCount = enabled.filter((s) => s.lastStatus === 'error').length;
-  const staleCount = enabled.filter((s) => s.lastRunAt && (Date.now() - new Date(s.lastRunAt).getTime()) / 3.6e6 > STALE_HOURS).length;
+  // Passive sources are excluded from both counters — they're never fetched,
+  // so a frozen last_run_at isn't staleness.
+  const fetched = enabled.filter((s) => !s.passive);
+  const errorCount = fetched.filter((s) => s.lastStatus === 'error').length;
+  const staleCount = fetched.filter((s) => s.lastRunAt && (Date.now() - new Date(s.lastRunAt).getTime()) / 3.6e6 > STALE_HOURS).length;
 
   // Counts per preset for the dropdown labels — gives the admin a
   // sense of source density at a glance without expanding.
