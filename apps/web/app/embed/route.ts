@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@proactivity/db';
 import { authenticate } from '@/lib/api-auth';
+import { dedupePipeline } from '@/lib/dedupe';
 import { LOCATION_PRESETS, findPreset } from '@/lib/locations';
 
 export const dynamic = 'force-dynamic';
@@ -60,8 +61,12 @@ export async function GET(request: Request) {
   // ----- fetch events (same SQL the public API uses, inlined to avoid a self-fetch hop) -----
   const radiusKm = radiusMi * 1.60934;
   const rows = (await sql`
+    ${dedupePipeline(sql`
     SELECT
       a.id, a.title, a.start_at, a.end_at, a.url, a.image_url,
+      -- Not rendered by the embed; these are the columns dedupePipeline
+      -- keys and ranks on.
+      a.source_event_id, a.description,
       a.venue_name, a.city, a.region,
       a.cost_min_cents, a.cost_max_cents, a.currency, a.availability,
       a.organizer_name, a.organizer_key,
@@ -97,7 +102,8 @@ export async function GET(request: Request) {
         ST_MakePoint(${lng}, ${lat})::geography,
         ${radiusKm * 1000}
       )
-    ORDER BY a.start_at ASC
+    `)}
+    ORDER BY start_at ASC
     LIMIT ${limit}
   `) as unknown as Array<{
     id: string;
