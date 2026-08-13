@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { sql } from '@proactivity/db';
 import { Logo } from '../../../Logo';
 import { categorize, type CategoryKey } from '@/lib/categories';
+import { dedupePipeline } from '@/lib/dedupe';
 import { findPresetBySeoSlug, LOCATION_PRESETS, type LocationPreset } from '@/lib/locations';
 import { findWindow, WINDOWS, type WindowDef } from '@/lib/seo-windows';
 import { placeholderFor } from '@/lib/icons';
@@ -46,8 +47,11 @@ async function loadEvents(preset: LocationPreset, win: WindowDef | null) {
   const filter = win ? win.buildFilter(now) : sql``;
   const limit = win?.limit ?? 40;
   const rows = (await sql`
+    ${dedupePipeline(sql`
     SELECT
       a.id, a.title, a.description, a.start_at, a.end_at,
+      -- Keying column for dedupePipeline; not rendered by the page itself.
+      a.source_event_id,
       a.venue_name, a.city, a.region,
       a.cost_min_cents, a.cost_max_cents, a.currency,
       a.availability, a.image_url, a.url, a.categories,
@@ -62,7 +66,8 @@ async function loadEvents(preset: LocationPreset, win: WindowDef | null) {
         ${RADIUS_KM * 1000}
       )
       ${filter}
-    ORDER BY a.start_at ASC
+    `)}
+    ORDER BY start_at ASC
     LIMIT ${limit}
   `) as unknown as EventRow[];
   return rows;
