@@ -47,8 +47,13 @@ type SqlFragment = ReturnType<typeof sql<any[]>>;
  * card to render. `id` is last and is unique, so the winner is deterministic —
  * without a total order Postgres could return a different survivor per query
  * and infinite scroll would tear across pages.
+ *
+ * Built lazily, not held in a module-level const. `sql` throws when
+ * DATABASE_URL is unset, and Next evaluates route modules during "Collecting
+ * page data" at build time — where it is unset — so building a fragment at
+ * import time fails the production build even though nothing has run a query.
  */
-const PREFERENCE = sql`
+const preference = () => sql`
   (image_url IS NOT NULL) DESC,
   length(COALESCE(description, '')) DESC,
   (venue_name IS NOT NULL) DESC,
@@ -75,8 +80,10 @@ const PREFERENCE = sql`
  * because the pipeline runs *after* each query's radius filter: a merge can only
  * ever occur between rows already inside the same result set, so it can never
  * move an event into or out of a user's radius.
+ *
+ * Lazily built, for the same build-time reason as {@link preference}.
  */
-const IDENTITY_KEY = sql`
+const identityKey = () => sql`
   -- POSIX class, not '\s': a backslash escape does not survive the trip from
   -- JS template literal through to the server intact, and silently degrades to
   -- the literal 's' — which collapses the letter s instead of whitespace.
@@ -109,13 +116,13 @@ export function dedupePipeline(base: SqlFragment) {
     -- Class A: identical feed item reached us through two sources.
     dedupe_pass_a AS (
       SELECT *,
-        ROW_NUMBER() OVER (PARTITION BY source_event_id ORDER BY ${PREFERENCE}) AS dedupe_rn_a
+        ROW_NUMBER() OVER (PARTITION BY source_event_id ORDER BY ${preference()}) AS dedupe_rn_a
       FROM dedupe_base
     ),
     -- Class B: one real event published under several distinct feed ids.
     dedupe_pass_b AS (
       SELECT *,
-        ROW_NUMBER() OVER (PARTITION BY ${IDENTITY_KEY} ORDER BY ${PREFERENCE}) AS dedupe_rn_b
+        ROW_NUMBER() OVER (PARTITION BY ${identityKey()} ORDER BY ${preference()}) AS dedupe_rn_b
       FROM dedupe_pass_a
       WHERE dedupe_rn_a = 1
     )
