@@ -4,6 +4,7 @@ import { icalAdapter } from './adapters/ical.js';
 import { eventonAdapter } from './adapters/eventon.js';
 import { jsonLdEventAdapter } from './adapters/jsonld-event.js';
 import { rssAdapter } from './adapters/rss.js';
+import { sparkgoAdapter } from './adapters/sparkgo.js';
 
 const adapters: ReadonlyMap<string, SourceAdapter> = new Map([
   [ticketmasterAdapter.key, ticketmasterAdapter],
@@ -11,6 +12,7 @@ const adapters: ReadonlyMap<string, SourceAdapter> = new Map([
   [eventonAdapter.key, eventonAdapter],
   [jsonLdEventAdapter.key, jsonLdEventAdapter],
   [rssAdapter.key, rssAdapter],
+  [sparkgoAdapter.key, sparkgoAdapter],
 ]);
 
 /**
