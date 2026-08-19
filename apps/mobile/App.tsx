@@ -1599,7 +1599,11 @@ const styles = StyleSheet.create({
   cardBody: { flex: 1 },
   cardTitle: { fontSize: 14, fontWeight: '600', marginBottom: 3 },
   cardMeta: { fontSize: 12 },
-  cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  // paddingRight reserves the corner that cardRateBtn is absolutely positioned
+  // into. Without it, `justifyContent: 'space-between'` pushes the price text
+  // to the same spot the "Rate ▸" link occupies and the two render on top of
+  // each other — visible on any card with a price, not just free ones.
+  cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingRight: 60 },
   cardBadges: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   badge: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 999 },
   price: { fontSize: 13, fontWeight: '600' },
