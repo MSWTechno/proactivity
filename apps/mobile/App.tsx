@@ -41,6 +41,22 @@ import { logEvent, logScreenView } from './lib/analytics';
 const API_BASE = (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)?.apiBaseUrl
   ?? 'https://proactivity.app';
 
+/**
+ * Round a coordinate to ~1.1 km before putting it in the /api/activities
+ * query string.
+ *
+ * Caching concern, not precision: the CDN keys on the full URL, so raw device
+ * coordinates gave every user a unique key and every app open woke the
+ * database. Bucketing shares one cache entry across everyone in roughly the
+ * same square kilometre — imperceptible against the 25-50 km search radius.
+ *
+ * Keep in step with the copy in apps/web/app/HomeClient.tsx.
+ */
+const COORD_CACHE_PRECISION = 2;
+function cacheBucket(coord: number): string {
+  return coord.toFixed(COORD_CACHE_PRECISION);
+}
+
 // Sub-filters shown when "Camps" is selected — each AND-combines with camps
 // server-side (camps + sports = sports camps). Keep in sync with web page.tsx.
 const CAMP_FACETS: [CategoryKey, string][] = [
@@ -320,8 +336,8 @@ export default function App() {
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
     if (geo.kind === 'ok') {
-      p.set('lat', String(geo.lat));
-      p.set('lng', String(geo.lng));
+      p.set('lat', cacheBucket(geo.lat));
+      p.set('lng', cacheBucket(geo.lng));
       p.set('radiusKm', String(Math.round(radiusMi * 1.60934)));
     }
     p.set('sort', effectiveSort);

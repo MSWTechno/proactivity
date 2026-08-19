@@ -9,11 +9,42 @@ import * as schema from './schema.js';
 let _client: ReturnType<typeof postgres> | null = null;
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
+// Neon scales the compute to zero only when no client connections are open.
+// postgres-js defaults to idle_timeout: null — it holds sockets open forever,
+// so every warm Vercel instance pinned the compute awake and we paid for
+// compute hours around the clock. Closing idle connections is what actually
+// lets autosuspend fire; the reconnect cost on the next request is far
+// cheaper than a permanently-running compute.
+//
+// max_lifetime also recycles long-lived sockets so a single warm instance
+// can't hold one connection open indefinitely by staying just busy enough.
+const IDLE_TIMEOUT_S = 20;
+const MAX_LIFETIME_S = 60 * 30;
+
+// Pool size per process. The nightly ingest runs 4 sources concurrently
+// (see runner.ts DEFAULT_CONCURRENCY), so keep enough headroom that workers
+// aren't serialising on connections — but well below postgres-js's default
+// of 10, which multiplied across warm serverless instances.
+const DEFAULT_POOL_MAX = 5;
+
+function poolMax(): number {
+  const raw = process.env.DB_POOL_MAX;
+  if (!raw) return DEFAULT_POOL_MAX;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 20) return DEFAULT_POOL_MAX;
+  return n;
+}
+
 function getClient(): ReturnType<typeof postgres> {
   if (_client) return _client;
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
-  _client = postgres(url, { prepare: false });
+  _client = postgres(url, {
+    prepare: false,
+    idle_timeout: IDLE_TIMEOUT_S,
+    max_lifetime: MAX_LIFETIME_S,
+    max: poolMax(),
+  });
   return _client;
 }
 

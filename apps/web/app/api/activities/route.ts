@@ -4,7 +4,10 @@ import { categorize, ALL_CATEGORY_KEYS, type CategoryKey } from '@/lib/categorie
 import { inferAgeRange } from '@/lib/age';
 import { dedupePipeline } from '@/lib/dedupe';
 
-export const dynamic = 'force-dynamic';
+// Deliberately NOT 'force-dynamic'. This handler reads `request.url`, so Next
+// already treats it as dynamic and never prerenders it — but force-dynamic
+// also suppresses CDN caching, which is exactly what we want here. See the
+// Cache-Control headers on the response below.
 
 interface ActivityRow {
   id: string;
@@ -319,13 +322,31 @@ export async function GET(request: Request) {
     ? (page + 1) * pageSize < filtered.length
     : rows.length === pageSize;
 
-  return NextResponse.json({
-    items,
-    page,
-    pageSize,
-    total: filtered.length,
-    hasMore,
-  });
+  return NextResponse.json(
+    {
+      items,
+      page,
+      pageSize,
+      total: filtered.length,
+      hasMore,
+    },
+    {
+      headers: {
+        // The catalog only changes when the nightly cron runs, but every web
+        // homepage load and every mobile foreground hit this route live —
+        // each one a PostGIS ST_DWithin + dedupe pass that kept the Neon
+        // compute busy. The response is anonymous (no cookies, no session),
+        // so it is safe to cache on Vercel's CDN keyed by the full query
+        // string. `stale-while-revalidate` means the first request after the
+        // 5-minute window still serves instantly from cache while one
+        // background request refreshes it.
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+        // Explicit Vercel-CDN header so the edge TTL doesn't depend on how
+        // Next.js chooses to rewrite the generic Cache-Control.
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      },
+    },
+  );
 }
 
 // Convert a DB timestamp (Date or postgres-js's non-ISO string) to strict ISO

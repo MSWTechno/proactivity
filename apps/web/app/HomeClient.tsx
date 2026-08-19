@@ -8,6 +8,25 @@ import { Logo } from './Logo';
 import { AdSlot } from './AdSlot';
 import { StayNearbyLink } from './StayNearbyLink';
 
+/**
+ * Round a coordinate to ~1.1 km before putting it in the /api/activities
+ * query string.
+ *
+ * This is a caching concern, not a privacy or precision one. The CDN keys its
+ * cache on the full URL, so sending raw device coordinates gave every single
+ * user a unique key — the feed response was effectively uncacheable and every
+ * visitor woke the database. Two decimal places buckets everyone within about
+ * a kilometre onto one shared key, which is invisible against the 25-50 km
+ * search radius but turns the feed into something the edge can actually
+ * serve.
+ *
+ * Keep in step with the copy in apps/mobile/App.tsx.
+ */
+const COORD_CACHE_PRECISION = 2;
+function cacheBucket(coord: number): string {
+  return coord.toFixed(COORD_CACHE_PRECISION);
+}
+
 const AD_SLOT_TOP = process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOP;
 const AD_SLOT_INFEED = process.env.NEXT_PUBLIC_ADSENSE_SLOT_INFEED;
 const AD_EVERY_N_CARDS = 6;
@@ -249,9 +268,10 @@ export default function HomeClient() {
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
+    // NOTE: apps/mobile/App.tsx has its own copy of this — keep them in step.
     if (geo.kind === 'ok') {
-      p.set('lat', String(geo.lat));
-      p.set('lng', String(geo.lng));
+      p.set('lat', cacheBucket(geo.lat));
+      p.set('lng', cacheBucket(geo.lng));
     }
     // mi → km for the API. Server-side filtering / distance math stays metric.
     p.set('radiusKm', String(Math.round(filters.radiusMi * 1.60934)));

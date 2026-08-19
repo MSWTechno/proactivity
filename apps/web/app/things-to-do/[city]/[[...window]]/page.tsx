@@ -10,10 +10,26 @@ import { findWindow, WINDOWS, type WindowDef } from '@/lib/seo-windows';
 import { placeholderFor } from '@/lib/icons';
 import { StayNearbyLink } from '../../../StayNearbyLink';
 
-export const dynamic = 'force-dynamic';
-// 30-minute cache hint — landing pages don't need to be fresher than that
-// and rebuilding the SQL on every hit during a Googlebot crawl is wasteful.
+// 30-minute ISR — landing pages don't need to be fresher than that and
+// rebuilding the SQL on every hit during a Googlebot crawl is wasteful.
+//
+// This used to also declare `dynamic = 'force-dynamic'`, which silently won:
+// force-dynamic overrides revalidate, so the cache below never applied and
+// every crawler hit ran a live PostGIS query. The page only reads `params`
+// (no cookies, no searchParams), so ISR is safe here.
 export const revalidate = 1800;
+
+// Deliberately no generateStaticParams here. Prerendering the ~45 city ×
+// window combinations at build time was tried and reverted: these pages query
+// the DB to render, so build-time prerendering makes every deploy depend on
+// Neon being awake and under quota. We've been bitten by compute-quota
+// outages before, and a deploy that can't ship because the database is down
+// is a worse failure than a cold first render.
+//
+// On-demand rendering plus the revalidate window above gets the same result
+// lazily: the first hit on a URL renders, the next 30 minutes are served from
+// the cache. Across 45 URLs that's a hard ceiling of ~48 renders/day each,
+// instead of one query per crawler hit.
 
 const SITE_BASE = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '') ?? 'https://proactivity.app';
 const RADIUS_KM = 50; // ~31 mi — wide enough to catch JMU / Bridgewater / etc

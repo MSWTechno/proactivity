@@ -152,6 +152,65 @@ export async function runAllSources(): Promise<void> {
 
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`[runner] all ${enabled.length} sources done in ${elapsed}s`);
+
+  await prunePastActivities();
+}
+
+/**
+ * Retention for past events, in days.
+ *
+ * Floor is set by the API, not by storage: /api/activities?daysAhead=past
+ * serves events back 90 days, and the sitemap keeps past events listed for 30
+ * so Google can deindex them without hitting a 404. 120 leaves a month of
+ * slack under the binding 90-day constraint — do not lower this below 90
+ * without changing that query first.
+ */
+const PAST_RETENTION_DAYS = 120;
+
+/**
+ * Drop past events nobody can reach any more.
+ *
+ * Note on expectations: at the time this was added only ~1% of rows were old
+ * enough to qualify, so this is not a meaningful storage saving today — it's
+ * a bound on unchecked growth now that ingestion runs nightly across the
+ * whole state. Rows an admin or organizer hand-edited are preserved
+ * regardless of age; they represent work that can't be re-fetched.
+ *
+ * Deleting an activity cascades to event_drafts.activity_id by FK. Ratings
+ * reference activities by a polymorphic (target_kind, target_key) pair with
+ * no FK, so target_kind='event' ratings for pruned activities are cleaned up
+ * alongside — target_kind='organizer' ratings key off organizer_key and
+ * survive the event they were left on.
+ */
+export async function prunePastActivities(): Promise<void> {
+  try {
+    const deleted = await sql`
+      WITH pruned AS (
+        DELETE FROM activities
+        WHERE COALESCE(end_at, start_at) < now() - (${PAST_RETENTION_DAYS}::int * interval '1 day')
+          AND manual_override = false
+        RETURNING id
+      ), orphaned_ratings AS (
+        DELETE FROM ratings
+        WHERE target_kind = 'event'
+          AND target_key IN (SELECT id::text FROM pruned)
+        RETURNING id
+      )
+      SELECT
+        (SELECT count(*) FROM pruned) AS activities,
+        (SELECT count(*) FROM orphaned_ratings) AS ratings
+    `;
+    const row = deleted[0];
+    if (row && Number(row.activities) > 0) {
+      console.log(
+        `[runner] pruned ${row.activities} activities older than ` +
+          `${PAST_RETENTION_DAYS}d (and ${row.ratings} orphaned ratings)`,
+      );
+    }
+  } catch (err) {
+    // Never let retention failure fail an otherwise-good ingest run.
+    console.error('[runner] prune failed:', err instanceof Error ? err.message : err);
+  }
 }
 
 export async function runSource(
@@ -257,8 +316,77 @@ async function upsertBatch(sourceId: string, items: NormalizedActivity[]): Promi
     )
     .onConflictDoUpdate({
       target: [activities.sourceId, activities.sourceEventId],
-      // Don't clobber rows admins (or approved organizer drafts) have edited.
-      setWhere: drizzleSql`activities.manual_override = false`,
+      // Two guards:
+      //  1. Don't clobber rows admins (or approved organizer drafts) edited.
+      //  2. Don't rewrite rows whose content is byte-for-byte unchanged.
+      //
+      // (2) matters for cost, not correctness. Most feeds republish the same
+      // events every night, so the old unconditional upsert rewrote the whole
+      // table daily — every row a new tuple plus WAL, for no change at all.
+      // Skipping the no-ops keeps dead tuples (and the vacuum churn behind
+      // them) proportional to real edits.
+      //
+      // `updated_at` is deliberately absent from the comparison: it's set to
+      // now() on every batch, so including it would make every row differ and
+      // defeat the check. `location` is geometry — compared as text because
+      // the geometry `=` operator has meant different things across PostGIS
+      // versions, while its text form is a deterministic EWKB hex string.
+      setWhere: drizzleSql`
+        activities.manual_override = false
+        AND (
+          activities.title,
+          activities.description,
+          activities.start_at,
+          activities.end_at,
+          activities.timezone,
+          activities.venue_name,
+          activities.address,
+          activities.city,
+          activities.region,
+          activities.country,
+          activities.location::text,
+          activities.age_min,
+          activities.age_max,
+          activities.cost_min_cents,
+          activities.cost_max_cents,
+          activities.currency,
+          activities.availability,
+          activities.is_virtual,
+          activities.organizer_name,
+          activities.organizer_url,
+          activities.organizer_key,
+          activities.url,
+          activities.image_url,
+          activities.categories,
+          activities.raw
+        ) IS DISTINCT FROM (
+          excluded.title,
+          excluded.description,
+          excluded.start_at,
+          excluded.end_at,
+          excluded.timezone,
+          excluded.venue_name,
+          excluded.address,
+          excluded.city,
+          excluded.region,
+          excluded.country,
+          excluded.location::text,
+          excluded.age_min,
+          excluded.age_max,
+          excluded.cost_min_cents,
+          excluded.cost_max_cents,
+          excluded.currency,
+          excluded.availability,
+          excluded.is_virtual,
+          excluded.organizer_name,
+          excluded.organizer_url,
+          excluded.organizer_key,
+          excluded.url,
+          excluded.image_url,
+          excluded.categories,
+          excluded.raw
+        )
+      `,
       set: {
         title: drizzleSql`excluded.title`,
         description: drizzleSql`excluded.description`,
