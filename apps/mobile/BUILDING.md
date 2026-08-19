@@ -149,12 +149,21 @@ eas credentials --platform android
 
 ```bash
 eas build --platform android --profile production    # produces AAB
-eas submit --platform android --profile production   # uploads to internal track
+eas submit --platform android --profile production   # uploads to the production track
 ```
 
-By default this submits to the **internal** testing track (see
-`eas.json` → `submit.production.android.track`). Promote to
-`production` in Play Console once you're ready.
+This submits to the **production** track (see `eas.json` →
+`submit.production.android.track`). It was `internal` until the closed-testing
+gates cleared on 2026-08-13; production access is open now, so submissions go
+straight there.
+
+Two things this depends on:
+
+- The service account needs **Releases → Manage production releases** in Play
+  Console. "Manage testing track releases" alone is alright for the internal
+  track but the submit will fail with a permissions error against production.
+- Uploading does not publish. The release still has to be reviewed and rolled
+  out from Play Console, so a staged rollout is worth choosing over 100%.
 
 ### App Store
 

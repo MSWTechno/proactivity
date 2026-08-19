@@ -30,7 +30,7 @@
         "ascApiKeyIssuerId": "b6b6873a-bf46-4f5a-afcc-213fc825b0be"
       },
       "android": {
-        "track": "internal",
+        "track": "production",
         "serviceAccountKeyPath": "./google-service-account.json"
       }
     }
