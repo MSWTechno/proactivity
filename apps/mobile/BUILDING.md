@@ -162,8 +162,11 @@ Two things this depends on:
 - The service account needs **Releases → Manage production releases** in Play
   Console. "Manage testing track releases" alone is alright for the internal
   track but the submit will fail with a permissions error against production.
-- Uploading does not publish. The release still has to be reviewed and rolled
-  out from Play Console, so a staged rollout is worth choosing over 100%.
+- Uploading does not publish, but only because `releaseStatus` is pinned to
+  `draft`. EAS defaults that field to `completed`, which creates the release
+  ready to go live at 100% once review passes. Draft leaves it parked in Play
+  Console so the rollout percentage is a deliberate choice — raise it to
+  `inProgress` with a `rollout` fraction, or promote by hand.
 
 ### App Store
 
