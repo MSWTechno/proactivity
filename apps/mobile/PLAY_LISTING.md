@@ -155,6 +155,52 @@ Use these exact phrases if Play offers free-text fields:
 
 ---
 
+## App access (sign-in details for review)
+
+Play asks for credentials so reviewers can reach every part of the app. Ours
+is an awkward fit: authentication is magic-link only (15-minute emailed
+token, `MAGIC_LINK_MAX_AGE_S` in `apps/web/lib/auth.ts`), and the mobile
+sign-in overlay has a single email field — no password, no code. There is no
+reusable credential to hand over.
+
+What is actually gated is small. Signed out, everything a visitor does works:
+browsing, filtering, sorting, search, event details, the location picker, the
+submit-event form, and ratings (`/api/ratings` accepts anonymous
+submissions). Signing in reveals exactly one extra surface, the organizer
+dashboard — and its entry point doesn't render at all until you're signed in.
+
+So: choose **All or some functionality is restricted**, leave username and
+password blank, and explain in "Any other instructions" — the field Google
+documents for one-time-password flows.
+
+- **Name**: `Organizer dashboard (optional sign-in)`
+- **Username / phone number**: *(blank)*
+- **Password**: *(blank)*
+- **Any other instructions**:
+
+```
+Sign-in is optional and is not required to review this app. All core
+functionality works while signed out: browsing events, filtering by category,
+date, distance and price, sorting, search, viewing event details, the location
+picker, submitting an event, and submitting a rating.
+
+Signing in reveals one additional area: an organizer dashboard where a venue
+can manage its own listings.
+
+Authentication is passwordless. We email a one-time sign-in link that expires
+in 15 minutes, so there is no reusable username and password to provide. If
+you need access to the organizer dashboard, email support@proactivity.app and
+we will arrange a live session promptly.
+```
+
+If a reviewer ever rejects on this, the fallback is a scoped demo sign-in: a
+single env-configured demo address that returns a long-lived token instead of
+emailing one, plus a code field in the overlay. Deliberately not built yet —
+it is new authentication surface, and the exposure here is one secondary
+dashboard.
+
+---
+
 ## Pre-launch report opt-in
 
 When you upload your first AAB to internal testing, Play runs an automated crawler. Enable it — free, catches obvious crashes/policy issues before review.
